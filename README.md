@@ -96,3 +96,184 @@ Step by step guide:
 
 9. Output result
    > For each channel-typed function parameter, report possible channel allocation sites
+
+## Formal Definition of the Channel-Flow Analysis
+
+### Goal
+
+The goal of the analysis is to compute, for each function parameter of channel type in a Go program, the set of channel allocation sites that may flow into this parameter at runtime.
+
+A `channel allocation site` is a program location where a new channel is created using:
+
+```go
+make(chan T)
+```
+
+Example:
+
+```go
+func worker(ch chan int) {}
+
+func main() {
+    c := make(chan int)
+    worker(c)
+}
+```
+
+Expected result:
+
+```
+worker.ch -> { main.go:5 make(chan int) }
+```
+
+### Input
+
+The input of the analysis is a Go package or module loaded through the Go analysis infrastructure.
+
+The analysis uses:
+
+- `go/packages` to load Go packages, syntax trees, type information, imports, and dependencies;
+- `go/types` to identify channel-typed parameters and values;
+- `go/ssa` to inspect value-flow instructions;
+- `go/callgraph` to connect call sites with possible callee functions.
+
+### Output
+
+The output is a mapping:
+
+```
+ChannelParameter -> Set<ChannelAllocationSite>
+```
+
+For each function parameter whose type is `chan T`, `<-chan T`, or `chan<- T`, the analysis reports all channel allocation sites that may flow into this parameter.
+
+Example output:
+
+```
+Function parameter: worker.ch chan int
+
+Possible channel allocation sites:
+- main.go:5:10 make(chan int)
+- main.go:6:10 make(chan int)
+```
+
+### Abstract domain
+
+The abstract domain is the powerset of channel allocation sites:
+
+```
+ChannelSet = P(ChannelAllocationSites)
+```
+
+Each element of this domain is a set of possible channel allocation sites.
+
+Examples:
+
+```
+{}
+{AllocSite#1}
+{AllocSite#2}
+{AllocSite#1, AllocSite#2}
+```
+
+### Abstract state
+
+The analysis state maps SSA values and other analysis entities to sets of channel allocation sites:
+
+```
+State : Value -> Set<ChannelAllocationSite>
+```
+
+Examples of analysis values:
+
+- SSA values;
+- channel-typed function parameters;
+- phi nodes;
+- function return values;
+- call results.
+
+Example:
+
+```
+State[x] = {AllocSite#1}
+State[worker.ch] = {AllocSite#1, AllocSite#2}
+```
+
+### Constraint form
+
+The analysis generates flow constraints of the form:
+
+```
+State[target] ⊇ State[source]
+```
+
+This means that every channel allocation site that may flow into `source` must also be considered as possibly flowing into `target`.
+
+In implementation terms:
+
+```
+State[target] = State[target] ∪ State[source]
+```
+
+### Core constraints
+
+#### Channel creation
+
+```
+make(chan T) -> State[v] contains AllocSite
+```
+
+#### Assignment
+
+```
+State[dst] ⊇ State[src]
+```
+
+#### Phi node
+
+```
+State[phi] ⊇ State[input]
+```
+
+#### Function call
+
+```
+State[param] ⊇ State[arg]
+```
+
+#### Return
+
+```
+State[func.return] ⊇ State[value]
+```
+
+#### Call result
+
+```
+State[result] ⊇ State[func.return]
+```
+
+
+### Solver
+
+The constraints are solved using a `work-list fixed-point algorithm`.
+
+The algorithm starts with empty channel sets for all values. Channel allocation sites are added as initial facts. Then the solver repeatedly propagates channel sets through constraints until no set changes anymore.
+
+Since the number of channel allocation sites and SSA values in a finite Go program is finite, and each set can only grow, the algorithm eventually reaches a fixed point.
+
+### Analysis properties
+
+The analysis is:
+
+- `static`, because it analyzes the program without executing it
+- `conservative`, because it over-approximates possible channel flows
+- `may-analysis`, because it computes which channels may flow into each parameter
+- `forward`, because channel-flow information is propagated from channel creation sites to later uses
+- `interprocedural`, because information is propagated across function calls
+
+The analysis may report extra possible channel flows, but it should not miss real channel flows within the supported language subset.
+
+## MVP Implementation
+
+[Here](mvp_implementation) is a first so-called MVP version of the implementation.
