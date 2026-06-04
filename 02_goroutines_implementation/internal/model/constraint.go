@@ -1,15 +1,29 @@
 package model
 
-// Constraint means State[Target] ⊇ State[Source]
+// Constraint means the target state includes everything from the source state.
 type Constraint struct {
-	Source ValueID
-	Target ValueID
+	Source ContextValue
+	Target ContextValue
 }
 
-// State maps each analysis value to the set of possible channel allocation sites
-type State map[ValueID]map[AllocSite]struct{}
+// State maps each contextual value to the set of possible channel allocation sites
+type State map[ContextValue]map[AllocSite]struct{}
 
-// NewState creates and returns a new State
 func NewState() State {
 	return make(State)
+}
+
+type OpType string
+
+const (
+	OpRead  OpType = "READ"
+	OpWrite OpType = "WRITE"
+	OpClose OpType = "CLOSE"
+)
+
+// ChanOp - operation on a channel variable
+type ChanOp struct {
+	Type       OpType
+	ChannelVar ContextValue
+	Position   string
 }

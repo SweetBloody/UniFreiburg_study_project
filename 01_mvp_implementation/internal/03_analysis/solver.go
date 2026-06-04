@@ -1,7 +1,7 @@
 package analysis
 
 import (
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/model"
+	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/01_mvp_implementation/internal/model"
 )
 
 // Solve runs the work-list algorithm to propagate channel flows

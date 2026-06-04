@@ -1,30 +1,26 @@
 package analysis
 
 import (
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/model"
+	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/model"
 )
 
 // Solve runs the work-list algorithm to propagate channel flows
 func Solve(state model.State, constraints []model.Constraint) {
-	outEdges := make(map[model.ValueID][]model.ValueID)
+	outEdges := make(map[model.ContextValue][]model.ContextValue)
 
-	// Initialize worklist
-	var worklist []model.ValueID
-	inWorklist := make(map[model.ValueID]bool)
+	var worklist []model.ContextValue
+	inWorklist := make(map[model.ContextValue]bool)
 
 	for _, c := range constraints {
 		outEdges[c.Source] = append(outEdges[c.Source], c.Target)
 
-		// If the source already has some sets, put it in the worklist
 		if len(state[c.Source]) > 0 && !inWorklist[c.Source] {
 			worklist = append(worklist, c.Source)
 			inWorklist[c.Source] = true
 		}
 	}
 
-	// Work-list loop
 	for len(worklist) > 0 {
-		// Pop front
 		source := worklist[0]
 		worklist = worklist[1:]
 		inWorklist[source] = false

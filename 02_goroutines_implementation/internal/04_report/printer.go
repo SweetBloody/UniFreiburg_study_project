@@ -4,41 +4,66 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/model"
+	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/model"
 
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/03_analysis"
+	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/03_analysis"
 )
 
-// PrintResults prints the possible channel allocation sites for each target parameter
+// PrintResults prints the abstract domain: which goroutines perform what operations on each channel
 func PrintResults(collector *analysis.Collector) {
-	for _, target := range collector.TargetParameters {
-		param := target.Param
-		id := target.ID
+	domain := make(map[model.AllocSite]map[model.GoroutineID]map[model.OpType]struct{})
 
-		fmt.Printf("Function parameter: %s %s\n\n", id, param.Type())
-
-		sitesMap := collector.State[id]
-		if len(sitesMap) == 0 {
-			fmt.Println("Possible channel allocation sites: None")
-		} else {
-			fmt.Println("Possible channel allocation sites:")
-
-			// Sort sites for deterministic output
-			var sites []model.AllocSite
-			for site := range sitesMap {
-				sites = append(sites, site)
+	for _, op := range collector.Operations {
+		sites := collector.State[op.ChannelVar]
+		for site := range sites {
+			if domain[site] == nil {
+				domain[site] = make(map[model.GoroutineID]map[model.OpType]struct{})
 			}
-			sort.Slice(sites, func(i, j int) bool {
-				if sites[i].Position.Filename == sites[j].Position.Filename {
-					return sites[i].Position.Line < sites[j].Position.Line
-				}
-				return sites[i].Position.Filename < sites[j].Position.Filename
-			})
+			if domain[site][op.ChannelVar.Goroutine] == nil {
+				domain[site][op.ChannelVar.Goroutine] = make(map[model.OpType]struct{})
+			}
+			domain[site][op.ChannelVar.Goroutine][op.Type] = struct{}{}
+		}
+	}
 
-			for _, site := range sites {
-				fmt.Printf("- %s %s\n", site.Position, site.Type)
+	var sites []model.AllocSite
+	for site := range domain {
+		sites = append(sites, site)
+	}
+	sort.Slice(sites, func(i, j int) bool {
+		return sites[i].Position.String() < sites[j].Position.String()
+	})
+
+	for _, site := range sites {
+		fmt.Printf("Channel Allocation: %s %s\n", site.Position, site.Type)
+
+		gMap := domain[site]
+		var gIDs []model.GoroutineID
+		for gID := range gMap {
+			gIDs = append(gIDs, gID)
+		}
+		sort.Slice(gIDs, func(i, j int) bool {
+			return string(gIDs[i]) < string(gIDs[j])
+		})
+
+		for _, gID := range gIDs {
+			fmt.Printf("- Goroutine '%s':\n", string(gID))
+
+			opMap := gMap[gID]
+			var ops []string
+			for op := range opMap {
+				ops = append(ops, string(op))
+			}
+			sort.Strings(ops)
+
+			for _, op := range ops {
+				fmt.Printf("    - %s\n", op)
 			}
 		}
 		fmt.Println()
+	}
+
+	if len(sites) == 0 {
+		fmt.Println("No channel usages found.")
 	}
 }

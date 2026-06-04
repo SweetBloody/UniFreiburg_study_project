@@ -14,7 +14,7 @@ func LoadPackages(pattern string) ([]*packages.Package, error) {
 
 	pkgs, err := packages.Load(cfg, pattern)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load packages: %w", err)
+		return nil, fmt.Errorf("failed to load packages, error: %w", err)
 	}
 
 	if packages.PrintErrors(pkgs) > 0 {

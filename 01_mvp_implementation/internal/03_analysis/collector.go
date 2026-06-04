@@ -3,7 +3,7 @@ package analysis
 import (
 	"go/types"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/model"
+	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/01_mvp_implementation/internal/model"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )

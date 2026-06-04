@@ -5,10 +5,10 @@ import (
 	"log"
 	"os"
 
-	loader "github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/01_loader"
-	ssa_builder "github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/02_ssa"
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/03_analysis"
-	report "github.com/SweetBloody/UniFreiburg_study_project/chanflow/internal/04_report"
+	loader "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/01_loader"
+	ssa_builder "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/02_ssa"
+	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/03_analysis"
+	report "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/04_report"
 )
 
 func main() {
@@ -18,25 +18,22 @@ func main() {
 	}
 	pattern := os.Args[1]
 
-	// 1. Load packages
+	// Load packages
 	pkgs, err := loader.LoadPackages(pattern)
 	if err != nil {
-		log.Fatalf("Error loading packages: %v", err)
+		log.Fatalf("Error loading packages, error: %v", err)
 	}
 
-	// 2. Build SSA
+	// Build SSA
 	prog, _ := ssa_builder.BuildSSA(pkgs)
 
-	// 3 & 4. Collect allocation sites and target parameters
+	// Traverse call graph, collect MakeChan, generate constraints, and collect Operations
 	collector := analysis.NewCollector()
 	collector.Collect(prog)
 
-	// 5 & 6. Generate constraints
-	constraints := analysis.GenerateCallConstraints(prog)
+	// Solve constraints
+	analysis.Solve(collector.State, collector.Constraints)
 
-	// 7. Solve constraints
-	analysis.Solve(collector.State, constraints)
-
-	// 8. Print result
+	// Print result
 	report.PrintResults(collector)
 }

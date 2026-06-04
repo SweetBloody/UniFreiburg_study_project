@@ -1,4 +1,4 @@
-module github.com/SweetBloody/UniFreiburg_study_project/chanflow
+module github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation
 
 go 1.26.3
 
