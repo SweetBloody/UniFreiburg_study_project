@@ -274,6 +274,10 @@ The analysis is:
 
 The analysis may report extra possible channel flows, but it should not miss real channel flows within the supported language subset.
 
-## MVP Implementation
+## MVP Implementation (v1)
 
-[Here](mvp_implementation) is a first so-called MVP version of the implementation.
+[Here](01_mvp_implementation) is a first so-called MVP version of the implementation.
+
+## Goroutine-sensitive implementation (v2)
+
+[Here](02_goroutines_implementation) is the goroutine-sensitive version of the implementation.
