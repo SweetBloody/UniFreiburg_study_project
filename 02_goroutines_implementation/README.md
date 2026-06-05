@@ -93,3 +93,14 @@ Code analysis occurs in several stages:
     2. Asks the Solver: "Which actual channel does `X` point to?".
     3. Puts this operation into the final structure by hierarchy: `Actual Channel ➔ Goroutine ➔ List of actions`.
     4. Prints a beautiful report.
+
+## 3. Example output
+
+```
+Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/02_goroutines_implementation/testdata/goroutines/main.go:13:11 chan int
+- Goroutine '/Users/sweetbloody/Documents/uni/UniFreiburg_study_project/02_goroutines_implementation/testdata/goroutines/main.go:15':
+    - READ
+- Goroutine '/Users/sweetbloody/Documents/uni/UniFreiburg_study_project/02_goroutines_implementation/testdata/goroutines/main.go:16':
+    - CLOSE
+    - WRITE
+```
