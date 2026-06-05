@@ -23,4 +23,5 @@ func main() {
 	b := create()
 	go reader(b)
 	go writer(b)
+	close(b)
 }

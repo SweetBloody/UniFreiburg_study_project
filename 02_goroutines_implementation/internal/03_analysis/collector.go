@@ -90,21 +90,11 @@ func (c *Collector) traverse(node *callgraph.Node, gID model.GoroutineID) {
 		}
 
 		// Match arguments to parameters to generate constraints (source var -> target var)
-		args := edge.Site.Common().Args
-		params := calleeNode.Func.Params
-		for i, arg := range args {
-			if i < len(params) {
-				param := params[i]
-				if isChanType(param.Type()) {
-					sourceVal := model.ContextValue{Value: model.MakeValueID(arg), Goroutine: gID}
-					targetVal := model.ContextValue{Value: model.MakeValueID(param), Goroutine: nextGID}
+		c.matchArgumentConstraints(edge, calleeNode.Func, gID, nextGID)
 
-					c.Constraints = append(c.Constraints, model.Constraint{
-						Source: sourceVal,
-						Target: targetVal,
-					})
-				}
-			}
+		// return value - var
+		if call, ok := edge.Site.(*ssa.Call); ok {
+			c.matchReturnConstraints(call, calleeNode.Func, gID, nextGID)
 		}
 
 		c.traverse(calleeNode, nextGID)
@@ -156,7 +146,106 @@ func (c *Collector) processInstruction(instr ssa.Instruction, gID model.Goroutin
 				})
 			}
 		}
+
+	case *ssa.Phi:
+		if isChanType(instr.Type()) {
+			targetVal := model.ContextValue{Value: model.MakeValueID(instr), Goroutine: gID}
+			for _, edgeVal := range instr.Edges {
+				sourceVal := model.ContextValue{Value: model.MakeValueID(edgeVal), Goroutine: gID}
+				c.Constraints = append(c.Constraints, model.Constraint{
+					Source: sourceVal,
+					Target: targetVal,
+				})
+			}
+		}
 	}
+}
+
+// matchArgumentConstraints links arguments passed in a function call to the function's formal parameters
+func (c *Collector) matchArgumentConstraints(edge *callgraph.Edge, callee *ssa.Function, gID, nextGID model.GoroutineID) {
+	args := edge.Site.Common().Args
+	params := callee.Params
+
+	for i, arg := range args {
+		if i >= len(params) {
+			continue
+		}
+
+		param := params[i]
+		if !isChanType(param.Type()) {
+			continue
+		}
+
+		sourceVal := model.ContextValue{Value: model.MakeValueID(arg), Goroutine: gID}
+		targetVal := model.ContextValue{Value: model.MakeValueID(param), Goroutine: nextGID}
+
+		c.Constraints = append(c.Constraints, model.Constraint{
+			Source: sourceVal,
+			Target: targetVal,
+		})
+	}
+}
+
+// matchReturnConstraints scans the callee function for Return instructions and links them to the Caller's variable
+func (c *Collector) matchReturnConstraints(callVal ssa.Value, callee *ssa.Function, gID, nextGID model.GoroutineID) {
+	if callVal == nil || callee == nil || callee.Blocks == nil {
+		return
+	}
+
+	for _, block := range callee.Blocks {
+		for _, instr := range block.Instrs {
+			ret, isRet := instr.(*ssa.Return)
+			if !isRet {
+				continue
+			}
+
+			if _, isTuple := callVal.Type().(*types.Tuple); isTuple {
+				c.handleTupleReturn(callVal, ret, gID, nextGID)
+			} else if len(ret.Results) == 1 {
+				c.handleSingleReturn(callVal, ret, gID, nextGID)
+			}
+		}
+	}
+}
+
+// handleTupleReturn processes multiple returns by linking extracted elements to the corresponding return results
+func (c *Collector) handleTupleReturn(callVal ssa.Value, ret *ssa.Return, gID, nextGID model.GoroutineID) {
+	referrers := callVal.Referrers()
+	if referrers == nil {
+		return
+	}
+
+	for _, ref := range *referrers {
+		extract, isExtract := ref.(*ssa.Extract)
+		if !isExtract {
+			continue
+		}
+
+		res := ret.Results[extract.Index]
+		if !isChanType(res.Type()) {
+			continue
+		}
+
+		sourceVal := model.ContextValue{Value: model.MakeValueID(res), Goroutine: nextGID}
+		targetVal := model.ContextValue{Value: model.MakeValueID(extract), Goroutine: gID}
+		c.Constraints = append(c.Constraints, model.Constraint{
+			Source: sourceVal, Target: targetVal,
+		})
+	}
+}
+
+// handleSingleReturn processes a single return by linking the return result directly to the call value
+func (c *Collector) handleSingleReturn(callVal ssa.Value, ret *ssa.Return, gID, nextGID model.GoroutineID) {
+	res := ret.Results[0]
+	if !isChanType(res.Type()) {
+		return
+	}
+
+	sourceVal := model.ContextValue{Value: model.MakeValueID(res), Goroutine: nextGID}
+	targetVal := model.ContextValue{Value: model.MakeValueID(callVal), Goroutine: gID}
+	c.Constraints = append(c.Constraints, model.Constraint{
+		Source: sourceVal, Target: targetVal,
+	})
 }
 
 // isChanType checks if the given type is a channel or a directional channel
