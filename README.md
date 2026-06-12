@@ -281,3 +281,33 @@ The analysis may report extra possible channel flows, but it should not miss rea
 ## Goroutine-sensitive implementation (v2)
 
 [Here](02_goroutines_implementation) is the goroutine-sensitive version of the implementation.
+
+## Symbolic-trace implementation (v3)
+
+[Here](03_symbolic_trace_implementation) is the symbolic trace version of the implementation.
+
+### Idea
+
+To represent channel operations symbolically by using `!` for `WRITE`, `?` for `READ` and `X` for `CLOSE`. And then use such a cymbolic trace for the future channel analysis.
+
+Example:
+```go
+ch <- 1 
+for i<5 {
+   ch <- 2 
+}
+<-ch  
+```
+will be represented as:
+
+```
+[!, loop(5, [!]), ?]
+```
+
+### What changed
+
+As we don't have any information about the control flow in our `SSA`, we need to use `AST` which helps us to see loops and branches.
+
+To get the best of both `SSA` and `AST`, we use a hybrid approach:
+
+> We still use `SSA`-builder but with a flag `ssa.GlobalDebug` which allows to save the debug information which helps to link the exact AST nodes with their corresponding SSA values.
