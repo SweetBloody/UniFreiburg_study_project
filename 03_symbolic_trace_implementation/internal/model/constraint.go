@@ -1,6 +1,6 @@
 package model
 
-// Constraint means the target state includes everything from the source state.
+// Constraint means the target state includes everything from the source state
 type Constraint struct {
 	Source ContextValue
 	Target ContextValue
@@ -20,10 +20,3 @@ const (
 	OpWrite OpType = "WRITE"
 	OpClose OpType = "CLOSE"
 )
-
-// ChanOp - operation on a channel variable
-type ChanOp struct {
-	Type       OpType
-	ChannelVar ContextValue
-	Position   string
-}

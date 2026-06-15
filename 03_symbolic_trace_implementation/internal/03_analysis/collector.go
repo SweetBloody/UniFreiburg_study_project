@@ -5,7 +5,7 @@ import (
 	"go/token"
 	"go/types"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/model"
+	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/model"
 	"golang.org/x/tools/go/callgraph"
 	"golang.org/x/tools/go/callgraph/static"
 	"golang.org/x/tools/go/ssa"
@@ -16,7 +16,6 @@ import (
 type Collector struct {
 	State       model.State
 	Constraints []model.Constraint
-	Operations  []model.ChanOp
 	allocID     int
 	visited     map[string]bool
 }
@@ -25,7 +24,6 @@ func NewCollector() *Collector {
 	return &Collector{
 		State:       model.NewState(),
 		Constraints: make([]model.Constraint, 0),
-		Operations:  make([]model.ChanOp, 0),
 		allocID:     1,
 		visited:     make(map[string]bool),
 	}
@@ -116,36 +114,6 @@ func (c *Collector) processInstruction(instr ssa.Instruction, gID model.Goroutin
 			c.State[val] = make(map[model.AllocSite]struct{})
 		}
 		c.State[val][site] = struct{}{}
-
-	case *ssa.Send:
-		val := model.ContextValue{Value: model.MakeValueID(instr.Chan), Goroutine: gID}
-		c.Operations = append(c.Operations, model.ChanOp{
-			Type:       model.OpWrite,
-			ChannelVar: val,
-			Position:   fset.Position(instr.Pos()).String(),
-		})
-
-	case *ssa.UnOp:
-		if instr.Op == token.ARROW {
-			val := model.ContextValue{Value: model.MakeValueID(instr.X), Goroutine: gID}
-			c.Operations = append(c.Operations, model.ChanOp{
-				Type:       model.OpRead,
-				ChannelVar: val,
-				Position:   fset.Position(instr.Pos()).String(),
-			})
-		}
-
-	case *ssa.Call:
-		if builtin, ok := instr.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "close" {
-			if len(instr.Call.Args) > 0 {
-				val := model.ContextValue{Value: model.MakeValueID(instr.Call.Args[0]), Goroutine: gID}
-				c.Operations = append(c.Operations, model.ChanOp{
-					Type:       model.OpClose,
-					ChannelVar: val,
-					Position:   fset.Position(instr.Pos()).String(),
-				})
-			}
-		}
 
 	case *ssa.Phi:
 		if isChanType(instr.Type()) {

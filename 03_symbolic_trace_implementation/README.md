@@ -1,12 +1,12 @@
-# Documentation: Thread-Sensitive Channel Analysis (Version 2 — Goroutines)
+# Documentation: Thread-Sensitive Channel Analysis (Version 3 — Symbolic Traces)
 
-This version of the analyzer is able to distinguish between function calls occurring in different goroutines. The main goal: to determine which goroutines read from a channel, and which write to it or close it.
+This version of the analyzer builds upon the previous stage. While the first stage (Goroutines Implementation) extracted a flat list of operations (`WRITE`, `READ`, `CLOSE`), this stage builds a symbolic trace by using `!` for `WRITE`, `?` for `READ` and `X` for `CLOSE`.
 
 ---
 
 ## 1. Main Data Structures and Their Fields
 
-All key structures are located in the `internal/model` and `internal/03_analysis` packages.
+All key structures are located in the `internal/model`, `internal/03_analysis`, and `internal/04_symbolic` packages.
 
 ### `ValueID` (string)
 A simple string identifier of a variable from the source code. The analyzer gives each variable a unique name (for example, `main.ch` or `worker.t1`).
@@ -34,13 +34,8 @@ A data transfer rule (constraint).
 *   **`Target`** (`ContextValue`): The target variable (where it was passed to).
 *   *Why is it needed?* When we call `worker(c)`, a Constraint is created stating: "Everything that was in variable `c` of the caller flows into the parameter of the `worker` function".
 
-### `OpType` and `ChanOp`
-Describe the actions that happen with the channel.
-*   **`OpType`**: The type of action (`READ`, `WRITE`, `CLOSE`).
-*   **`ChanOp`**: A structure storing:
-    *   `Type`: the type of operation.
-    *   `ChannelVar` (`ContextValue`): on which contextual variable the action was performed.
-    *   `Position`: where in the code this happened.
+### `OpType`
+Describes the actions that happen with the channel: `READ`, `WRITE`, `CLOSE`.
 
 ### `State`
 The knowledge map of the system: `map[ContextValue]map[AllocSite]struct{}`.
@@ -50,8 +45,18 @@ The knowledge map of the system: `map[ContextValue]map[AllocSite]struct{}`.
 The main "gatherer" of information during code traversal.
 *   **`State`**: The knowledge base about where channels are created.
 *   **`Constraints`**: The collected data transfer rules.
-*   **`Operations`**: The collected flat list of all `READ`/`WRITE`/`CLOSE` operations.
 *   **`visited`**: List of visited functions (to prevent infinite recursion).
+
+### `TraceNode` (interface)
+The base interface for all elements in our symbolic trace.
+*   **`OpNode`**: A leaf node representing a single channel operation (`!` for WRITE, `?` for READ, `X` for CLOSE). It also holds the `ContextValue` of the channel.
+*   **`LoopNode`**: Represents a loop, formatted as `loop(bounds, [body])`.
+*   **`IfNode`**: Represents conditional branching, formatted as `if(cond, [then], [else])`.
+
+### `Builder`
+The main constructor of the structural trace.
+*   **`State`**: Uses the solved data flow state to filter operations.
+*   **`visited`**: List of visited functions to prevent infinite recursion.
 
 ---
 
@@ -60,10 +65,11 @@ The main "gatherer" of information during code traversal.
 Code analysis occurs in several stages:
 
 ### Stage 1: Start of Analysis (`cmd/chanflow/main.go`)
-1. The program reads the source code and builds SSA (internal code representation as basic blocks and instructions).
+1. The program reads the source code and builds SSA (internal code representation as basic blocks and instructions). *Addition:* We now run the SSA builder with `ssa.GlobalDebug` enabled to preserve mapping to the AST.
 2. Calls `Collector.Collect()` to gather all information about channels and goroutines.
 3. Passes the collected data to the Solver (`Solve()`).
-4. Prints the final result via `PrintResults()`.
+4. Calls `symbolic.Builder.Build()` to extract the unified structural trace, then `ProjectAll()` to slice it by channel.
+5. Prints the final result via `report.PrintSymbolicTraces()`.
 
 ### Stage 2: Graph Traversal and Fact Gathering (`internal/03_analysis/collector.go`)
 *   **`Collect(prog)`**
@@ -79,28 +85,31 @@ Code analysis occurs in several stages:
 *   **`processInstruction(instr, gID)`**
     Analyzes every line:
     *   If it sees `make(chan)`, it records this channel in the `State` base.
-    *   If it sees a read, write (`<-`) or `close()`, it saves this operation in `Operations`, noting which goroutine did it.
     *   If it sees a control flow branch node (`*ssa.Phi`), which occurs when a channel is selected via an `if/else` condition, it generates rules to merge data flows from all possible branches into the resulting variable.
+    *(Note: Unlike Version 2, we no longer collect flat `READ/WRITE` operations here, as they are now extracted structurally by the AST Builder).*
 
 ### Stage 3: Solver Operation (`internal/03_analysis/solver.go`)
 *   **`Solve(state, constraints)`**
     This is a "Work-List" algorithm. We have a set of data transfer rules (`Constraints`) and initial channel creation points (`State`). The solver takes these rules and pushes data from sources to targets in a loop. It runs until the system reaches a fixed point (until all variables know about all the channels they can point to).
 
-### Stage 4: Building the Final Domain (`internal/04_report/printer.go`)
-*   **`PrintResults(collector)`**
-    The solver has finished, and now we know exactly which actual channel each contextual variable points to. The printer takes our flat list of `Operations` and sorts it out:
-    1. Takes an operation (e.g., `WRITE` to variable `X`).
-    2. Asks the Solver: "Which actual channel does `X` point to?".
-    3. Puts this operation into the final structure by hierarchy: `Actual Channel ➔ Goroutine ➔ List of actions`.
-    4. Prints a beautiful report.
+### Stage 4: Structural Traversal (`internal/04_symbolic/builder.go`)
+Once we have the solved `State`, we build the structural trace.
+*   **`Build(prog)`**: Finds the `main` function and starts an AST traversal.
+*   **`traverseASTNode(node)`**: Walks the Abstract Syntax Tree (AST) to preserve structural elements like `ast.ForStmt`, `ast.RangeStmt`, and `ast.IfStmt`.
+*   **`ValueForExpr`**: When the builder encounters a channel operation (like `<-ch` in AST), it uses `fn.ValueForExpr()` to get the corresponding SSA value. It then checks the `State` to see which channel this operation belongs to.
+*   **Inlining Goroutines**: When it encounters a function call or a goroutine spawn (`go func()`), it recursively traverses the called function and inlines its operations directly into the current execution path. This results in one massive unified tree representing the entire program execution.
+*   **`ProjectAll(unifiedTrace)`**: A mathematical projection function. It extracts all unique `AllocSites` from the `State`, and for each channel, it filters the massive unified program trace down to only its relevant operations. It drops operations belonging to other channels and automatically prunes any empty loops or `if` branches. This yields a ready-to-print map of `Channel -> Trace`.
+
+### Stage 5: Building the Final Domain (`internal/05_report/printer.go`)
+*   **`PrintSymbolicTraces`**
+    The printer takes the pre-calculated map of projected traces (`map[model.AllocSite][]model.TraceNode`) from the Builder and simply prints the resulting mathematical trace for each channel in a beautiful format.
 
 ## 3. Example output
 
 ```
-Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/02_goroutines_implementation/testdata/goroutines/main.go:13:11 chan int
-- Goroutine '/Users/sweetbloody/Documents/uni/UniFreiburg_study_project/02_goroutines_implementation/testdata/goroutines/main.go:15':
-    - READ
-- Goroutine '/Users/sweetbloody/Documents/uni/UniFreiburg_study_project/02_goroutines_implementation/testdata/goroutines/main.go:16':
-    - CLOSE
-    - WRITE
+Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/03_symbolic_trace_implementation/testdata/workerpool/main.go:10:14 chan int
+Trace: [ loop(3, [loop(*, [?])]), loop(5, [!]), X ]
+
+Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/03_symbolic_trace_implementation/testdata/workerpool/main.go:11:17 chan int
+Trace: [ loop(3, [loop(*, [!])]), loop(5, [?]) ]
 ```

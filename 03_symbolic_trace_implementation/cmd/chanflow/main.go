@@ -5,10 +5,11 @@ import (
 	"log"
 	"os"
 
-	loader "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/01_loader"
-	ssa_builder "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/02_ssa"
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/03_analysis"
-	report "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/04_report"
+	loader "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/01_loader"
+	ssa_builder "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/02_ssa"
+	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/03_analysis"
+	symbolic "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/04_symbolic"
+	report "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/05_report"
 )
 
 func main() {
@@ -34,6 +35,13 @@ func main() {
 	// Solve constraints
 	analysis.Solve(collector.State, collector.Constraints)
 
-	// Print result
-	report.PrintResults(collector)
+	// Build symbolic traces using AST & SSA state
+	symBuilder := symbolic.NewBuilder(collector.State)
+	unifiedTrace := symBuilder.Build(prog)
+
+	// Project traces for all channels
+	projectedTraces := symBuilder.ProjectAll(unifiedTrace)
+
+	// Print projected symbolic traces
+	report.PrintSymbolicTraces(projectedTraces)
 }
