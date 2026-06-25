@@ -15,16 +15,18 @@ import (
 type Builder struct {
 	State   model.State
 	visited map[string]bool
+	Traces  map[model.GoroutineID][]model.TraceNode
 }
 
 func NewBuilder(state model.State) *Builder {
 	return &Builder{
 		State:   state,
 		visited: make(map[string]bool),
+		Traces:  make(map[model.GoroutineID][]model.TraceNode),
 	}
 }
 
-func (b *Builder) Build(prog *ssa.Program) []model.TraceNode {
+func (b *Builder) Build(prog *ssa.Program) {
 	cg := static.CallGraph(prog)
 
 	var mainFunc *ssa.Function
@@ -36,15 +38,16 @@ func (b *Builder) Build(prog *ssa.Program) []model.TraceNode {
 	}
 
 	if mainFunc == nil {
-		return nil
+		return
 	}
 
 	mainNode := cg.Nodes[mainFunc]
 	if mainNode == nil {
-		return nil
+		return
 	}
 
-	return b.traverse(mainNode, model.GoroutineID("main"))
+	mainTrace := b.traverse(mainNode, model.GoroutineID("main"))
+	b.Traces[model.GoroutineID("main")] = append(b.Traces[model.GoroutineID("main")], mainTrace...)
 }
 
 func (b *Builder) traverse(node *callgraph.Node, gID model.GoroutineID) []model.TraceNode {
@@ -102,12 +105,12 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 		case *ast.RangeStmt:
 			body := b.traverseASTNode(v.Body, fn, cgNode, gID)
 
-			// A range over a channel implicitly reads from it on every iteration
 			val, _ := fn.ValueForExpr(v.X)
 			if val != nil {
 				ctxVal := model.ContextValue{Value: model.MakeValueID(val), Goroutine: gID}
 				if _, ok := b.State[ctxVal]; ok {
-					body = append([]model.TraceNode{model.OpNode{OpType: model.OpRead, Channel: ctxVal}}, body...)
+					nodes = append(nodes, model.RangeNode{Channel: ctxVal, Body: body})
+					return false
 				}
 			}
 
@@ -160,7 +163,8 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 					if _, isGo := edge.Site.(*ssa.Go); isGo {
 						nextGID := model.GoroutineID(fmt.Sprintf("%s:%d", pos.Filename, pos.Line))
 						childRoot := b.traverse(edge.Callee, nextGID)
-						nodes = append(nodes, childRoot...)
+						// Save to Traces map, DO NOT inline into current trace
+						b.Traces[nextGID] = append(b.Traces[nextGID], childRoot...)
 					}
 					break
 				}
@@ -172,7 +176,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 						if _, isGo := edge.Site.(*ssa.Go); isGo {
 							nextGID := model.GoroutineID(fmt.Sprintf("%s:%d", pos.Filename, pos.Line))
 							childRoot := b.traverse(edge.Callee, nextGID)
-							nodes = append(nodes, childRoot...)
+							b.Traces[nextGID] = append(b.Traces[nextGID], childRoot...)
 						}
 						break
 					}
@@ -230,7 +234,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 }
 
 // ProjectAll generates projected traces for all discovered channels
-func (b *Builder) ProjectAll(nodes []model.TraceNode) map[model.AllocSite][]model.TraceNode {
+func (b *Builder) ProjectAll() map[model.AllocSite]map[model.GoroutineID][]model.TraceNode {
 	// Extract all unique channels
 	allocSites := make(map[model.AllocSite]struct{})
 	for _, sites := range b.State {
@@ -239,11 +243,19 @@ func (b *Builder) ProjectAll(nodes []model.TraceNode) map[model.AllocSite][]mode
 		}
 	}
 
-	// Project the trace for each channel
-	result := make(map[model.AllocSite][]model.TraceNode)
+	// Project the trace for each channel per goroutine
+	result := make(map[model.AllocSite]map[model.GoroutineID][]model.TraceNode)
 	for site := range allocSites {
-		projected := b.projectTrace(nodes, site)
-		result[site] = projected
+		siteTraces := make(map[model.GoroutineID][]model.TraceNode)
+		for gID, trace := range b.Traces {
+			projected := b.projectTrace(trace, site)
+			if len(projected) > 0 {
+				siteTraces[gID] = projected
+			}
+		}
+		if len(siteTraces) > 0 {
+			result[site] = siteTraces
+		}
 	}
 
 	return result
@@ -261,6 +273,24 @@ func (b *Builder) projectTrace(nodes []model.TraceNode, targetAlloc model.AllocS
 			if sites, ok := b.State[v.Channel]; ok {
 				if _, matches := sites[targetAlloc]; matches {
 					result = append(result, v)
+				}
+			}
+
+		case model.RangeNode:
+			body := b.projectTrace(v.Body, targetAlloc)
+
+			isTarget := false
+			if sites, ok := b.State[v.Channel]; ok {
+				if _, matches := sites[targetAlloc]; matches {
+					isTarget = true
+				}
+			}
+
+			if isTarget {
+				result = append(result, model.RangeNode{Channel: v.Channel, Body: body})
+			} else {
+				if len(body) > 0 {
+					result = append(result, model.LoopNode{Bounds: "*", Body: body})
 				}
 			}
 

@@ -74,3 +74,20 @@ type CallNode struct {
 func (n CallNode) String() string {
 	return fmt.Sprintf("call(%s)", n.FuncName)
 }
+
+// RangeNode represents a range loop over a channel
+type RangeNode struct {
+	Channel ContextValue
+	Body    []TraceNode
+}
+
+func (n RangeNode) String() string {
+	if len(n.Body) == 0 {
+		return "?*"
+	}
+	var bodyStrs []string
+	for _, b := range n.Body {
+		bodyStrs = append(bodyStrs, b.String())
+	}
+	return fmt.Sprintf("range(?*, [%s])", strings.Join(bodyStrs, ", "))
+}

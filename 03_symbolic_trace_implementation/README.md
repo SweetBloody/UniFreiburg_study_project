@@ -52,6 +52,7 @@ The base interface for all elements in our symbolic trace.
 *   **`OpNode`**: A leaf node representing a single channel operation (`!` for WRITE, `?` for READ, `X` for CLOSE). It also holds the `ContextValue` of the channel.
 *   **`LoopNode`**: Represents a loop, formatted as `loop(bounds, [body])`.
 *   **`IfNode`**: Represents conditional branching, formatted as `if(cond, [then], [else])`.
+*   **`RangeNode`**: Represents a `for ... range` loop over a channel, formatted as `?*` (which consumes all values until the channel is closed).
 
 ### `Builder`
 The main constructor of the structural trace.
@@ -97,19 +98,21 @@ Once we have the solved `State`, we build the structural trace.
 *   **`Build(prog)`**: Finds the `main` function and starts an AST traversal.
 *   **`traverseASTNode(node)`**: Walks the Abstract Syntax Tree (AST) to preserve structural elements like `ast.ForStmt`, `ast.RangeStmt`, and `ast.IfStmt`.
 *   **`ValueForExpr`**: When the builder encounters a channel operation (like `<-ch` in AST), it uses `fn.ValueForExpr()` to get the corresponding SSA value. It then checks the `State` to see which channel this operation belongs to.
-*   **Inlining Goroutines**: When it encounters a function call or a goroutine spawn (`go func()`), it recursively traverses the called function and inlines its operations directly into the current execution path. This results in one massive unified tree representing the entire program execution.
-*   **`ProjectAll(unifiedTrace)`**: A mathematical projection function. It extracts all unique `AllocSites` from the `State`, and for each channel, it filters the massive unified program trace down to only its relevant operations. It drops operations belonging to other channels and automatically prunes any empty loops or `if` branches. This yields a ready-to-print map of `Channel -> Trace`.
+*   **Goroutine Separation**: When it encounters a function call, it recursively traverses and inlines it. However, when it encounters a goroutine spawn (`go func()`), it creates a separate, independent trace for the new goroutine. The Builder stores all these traces internally as `map[GoroutineID][]TraceNode`.
+*   **`ProjectAll()`**: A mathematical projection function. It extracts all unique `AllocSites` from the `State`, and for each channel, it filters the traces of all goroutines down to only their relevant operations. It drops operations belonging to other channels and automatically prunes any empty loops or `if` branches. This yields a ready-to-print map of `Channel -> Goroutine -> Trace`.
 
 ### Stage 5: Building the Final Domain (`internal/05_report/printer.go`)
 *   **`PrintSymbolicTraces`**
-    The printer takes the pre-calculated map of projected traces (`map[model.AllocSite][]model.TraceNode`) from the Builder and simply prints the resulting mathematical trace for each channel in a beautiful format.
+    The printer takes the pre-calculated map of projected traces (`map[model.AllocSite]map[model.GoroutineID][]model.TraceNode`) from the Builder and prints the resulting mathematical trace, grouped by each goroutine that interacts with the channel.
 
 ## 3. Example output
 
-```
-Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/03_symbolic_trace_implementation/testdata/workerpool/main.go:10:14 chan int
-Trace: [ loop(3, [loop(*, [?])]), loop(5, [!]), X ]
+```text
+Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/03_symbolic_trace_implementation/testdata/pipeline/main.go:25:12 chan int
+  Goroutine main.go:28: [ loop(*, [!]), X ]
+  Goroutine main.go:29: [ ?* ]
 
-Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/03_symbolic_trace_implementation/testdata/workerpool/main.go:11:17 chan int
-Trace: [ loop(3, [loop(*, [!])]), loop(5, [?]) ]
+Channel Allocation: /Users/sweetbloody/Documents/uni/UniFreiburg_study_project/03_symbolic_trace_implementation/testdata/pipeline/main.go:24:12 chan int
+  Goroutine main.go:27: [ loop(5, [!]), X ]
+  Goroutine main.go:28: [ ?* ]
 ```

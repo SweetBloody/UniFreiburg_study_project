@@ -8,20 +8,21 @@ import (
 )
 
 // PrintSymbolicTraces iterates over projected channels and prints their traces
-func PrintSymbolicTraces(projectedTraces map[model.AllocSite][]model.TraceNode) {
-	for site, projected := range projectedTraces {
+func PrintSymbolicTraces(projectedTraces map[model.AllocSite]map[model.GoroutineID][]model.TraceNode) {
+	for site, siteTraces := range projectedTraces {
 		fmt.Printf("\nChannel Allocation: %s:%s %s\n", site.Position.Filename, fmt.Sprintf("%d:%d", site.Position.Line, site.Position.Column), site.Type)
 
-		// Format the trace list into a string
-		var strs []string
-		for _, n := range projected {
-			strs = append(strs, n.String())
-		}
+		for gID, trace := range siteTraces {
+			var strs []string
+			for _, n := range trace {
+				strs = append(strs, n.String())
+			}
 
-		if len(strs) > 0 {
-			fmt.Printf("Trace: [ %s ]\n", strings.Join(strs, ", "))
-		} else {
-			fmt.Println("Trace: [ ]")
+			if len(strs) > 0 {
+				fmt.Printf("  Goroutine %s: [ %s ]\n", gID, strings.Join(strs, ", "))
+			} else {
+				fmt.Printf("  Goroutine %s: [ ]\n", gID)
+			}
 		}
 	}
 }

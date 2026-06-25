@@ -37,10 +37,10 @@ func main() {
 
 	// Build symbolic traces using AST & SSA state
 	symBuilder := symbolic.NewBuilder(collector.State)
-	unifiedTrace := symBuilder.Build(prog)
+	symBuilder.Build(prog)
 
 	// Project traces for all channels
-	projectedTraces := symBuilder.ProjectAll(unifiedTrace)
+	projectedTraces := symBuilder.ProjectAll()
 
 	// Print projected symbolic traces
 	report.PrintSymbolicTraces(projectedTraces)
