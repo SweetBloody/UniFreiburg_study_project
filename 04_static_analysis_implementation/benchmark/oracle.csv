@@ -1,0 +1,37 @@
+ID,Source,Path,Expected,Supported,Reason
+GPH-01,gopherlyzer,benchmark/suite/gph-deadlock,Deadlock,yes,cyclic unmatched communication
+GPH-03,gopherlyzer,benchmark/suite/gph-philo,Deadlock,yes,dining philosophers circular wait
+GPH-04,gopherlyzer,benchmark/suite/gph-primesieve,Deadlock,yes,prime sieve deadlock
+GPH-05,gopherlyzer,benchmark/suite/gph-primesieve-single,Safe,yes,safe single-threaded prime sieve
+GPH-06,gopherlyzer,benchmark/suite/gph-barrier-safe,Safe,yes,safe channel synchronization barrier
+GPH-07,gopherlyzer,benchmark/suite/gph-barrier-deadlock,Deadlock,yes,broken channel barrier missing arrival
+DNG-01,dingo-hunter,benchmark/suite/dng-local-deadlock,Deadlock,yes,unmatched send without receiver
+DNG-02,dingo-hunter,benchmark/suite/dng-local-deadlock-fixed,Safe,yes,fixed local deadlock with receiver
+DNG-07,dingo-hunter,benchmark/suite/dng-simple,Deadlock,yes,reading channel without sender
+DNG-08,dingo-hunter,benchmark/suite/dng-producer-consumer,Safe,yes,safe producer-consumer pattern
+DNG-09,dingo-hunter,benchmark/suite/dng-ring-pattern,Safe,yes,safe circular message passing
+DNG-10,dingo-hunter,benchmark/suite/dng-loop-variations,Deadlock,yes,channel read without sender inside loop
+DNG-11,dingo-hunter,benchmark/suite/dng-factorial,Safe,yes,safe factorial computation
+DNG-13,dingo-hunter,benchmark/suite/dng-infinite-prime-sieve,Safe,yes,safe infinite prime sieve
+DNG-14,dingo-hunter,benchmark/suite/dng-golang-blog-prime-sieve,Safe,yes,safe blog prime sieve
+STD-01,literature,benchmark/suite/std-unmatched-send,Deadlock,yes,send with no receiver
+STD-02,literature,benchmark/suite/std-unmatched-receive,Deadlock,yes,receive with no sender
+STD-03,literature,benchmark/suite/std-double-send,Deadlock,yes,double send one receive
+STD-04,literature,benchmark/suite/std-double-receive,Deadlock,yes,one send double receive
+STD-05,literature,benchmark/suite/std-loop-mismatch,Deadlock,yes,sender loops 5 times receiver loops 3
+STD-06,literature,benchmark/suite/std-range-no-close,Deadlock,yes,range loop on unclosed channel
+STD-07,literature,benchmark/suite/std-early-return,Deadlock,yes,worker returns before sending
+STD-08,literature,benchmark/suite/std-cond-deadlock,Deadlock,yes,branch-dependent deadlock
+STD-09,literature,benchmark/suite/std-worker-deadlock,Deadlock,yes,workers waiting on empty channel
+STD-10,literature,benchmark/suite/std-pipeline-deadlock,Deadlock,yes,pipeline stage forgets close
+STD-11,gcatch,benchmark/suite/std-circular-wait,Deadlock,yes,circular wait deadly embrace
+STD-12,literature,benchmark/suite/std-fork-join-safe,Safe,yes,safe fork join pattern
+STD-13,literature,benchmark/suite/std-fork-join-deadlock,Deadlock,yes,broken fork join missing worker send
+STD-14,literature,benchmark/suite/std-ping-pong-safe,Safe,yes,safe ping pong communication
+STD-15,literature,benchmark/suite/std-ping-pong-deadlock,Deadlock,yes,ping pong circular read wait
+STD-16,literature,benchmark/suite/std-daisy-chain-safe,Safe,yes,safe daisy chain pipeline
+STD-17,literature,benchmark/suite/std-daisy-chain-deadlock,Deadlock,yes,broken daisy chain mismatched read count
+CUS-01,custom,benchmark/suite/cus-pipeline,Safe,yes,safe pipeline with close
+CUS-02,custom,benchmark/suite/cus-deadlock,Deadlock,yes,cross channel deadlock
+CUS-03,custom,benchmark/suite/cus-fanout-safe,Safe,yes,safe channel fanout pattern
+CUS-04,custom,benchmark/suite/cus-fanout-deadlock,Deadlock,yes,broken channel fanout unconsumed item
