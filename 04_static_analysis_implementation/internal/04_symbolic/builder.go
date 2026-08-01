@@ -108,11 +108,15 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 			body := b.traverseASTNode(v.Body, fn, cgNode, gID)
 			bounds := "*"
 
-			// Attempt to extract explicit integer bounds (e.g., i < 5)
+			// Attempt to extract explicit integer bounds (e.g., i < 5 or 5 > i)
 			if v.Cond != nil {
 				if binExpr, ok := v.Cond.(*ast.BinaryExpr); ok {
-					if binExpr.Op == token.LSS || binExpr.Op == token.LEQ {
+					if (binExpr.Op == token.LSS || binExpr.Op == token.LEQ) && binExpr.Y != nil {
 						if lit, ok := binExpr.Y.(*ast.BasicLit); ok && lit.Kind == token.INT {
+							bounds = lit.Value
+						}
+					} else if (binExpr.Op == token.GTR || binExpr.Op == token.GEQ) && binExpr.X != nil {
+						if lit, ok := binExpr.X.(*ast.BasicLit); ok && lit.Kind == token.INT {
 							bounds = lit.Value
 						}
 					}

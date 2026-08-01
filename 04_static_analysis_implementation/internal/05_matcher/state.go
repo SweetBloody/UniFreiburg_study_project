@@ -3,6 +3,7 @@ package matcher
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
@@ -80,6 +81,29 @@ func NextStates(s MachineState) []MachineState {
 			return nextStates
 
 		case model.LoopNode:
+			// If Bounds is a concrete integer N >= 0, unroll deterministically
+			if n, err := strconv.Atoi(v.Bounds); err == nil && n >= 0 && n <= 100 {
+				if n == 0 {
+					s1 := cloneState(s)
+					s1.Goroutines[gID] = tail
+					nextStates = append(nextStates, s1)
+					return nextStates
+				}
+				s1 := cloneState(s)
+				newTrace := make([]model.TraceNode, 0, len(v.Body)+1+len(tail))
+				newTrace = append(newTrace, v.Body...)
+				if n > 1 {
+					newTrace = append(newTrace, model.LoopNode{
+						Bounds: strconv.Itoa(n - 1),
+						Body:   v.Body,
+					})
+				}
+				newTrace = append(newTrace, tail...)
+				s1.Goroutines[gID] = newTrace
+				nextStates = append(nextStates, s1)
+				return nextStates
+			}
+
 			// Branch 1: Exit loop
 			s1 := cloneState(s)
 			s1.Goroutines[gID] = tail
