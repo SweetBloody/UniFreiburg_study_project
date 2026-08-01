@@ -150,7 +150,7 @@ func getVerdict(expected, actual string) string {
 	return "?"
 }
 
-func printSummary(tp, fp, tn, fn) {
+func printSummary(tp, fp, tn, fn int) {
 	total := tp + fp + tn + fn
 
 	precision := 0.0
