@@ -311,3 +311,9 @@ As we don't have any information about the control flow in our `SSA`, we need to
 To get the best of both `SSA` and `AST`, we use a hybrid approach:
 
 > We still use `SSA`-builder but with a flag `ssa.GlobalDebug` which allows to save the debug information which helps to link the exact AST nodes with their corresponding SSA values.
+
+## Static Analysis (v4)
+
+[Here](04_static_analysis_implementation) is the static analysis version.
+
+Added analysis of the traces from version 3 and finding precision and recall of the analyzer.
