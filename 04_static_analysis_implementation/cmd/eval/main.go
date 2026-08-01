@@ -41,11 +41,9 @@ func main() {
 	fmt.Println("-----------------------------------------------------------------------------------------")
 
 	var tp, fp, tn, fn int
-	var skipped int
 
 	for _, entry := range entries {
 		if strings.ToLower(entry.Supported) != "yes" {
-			skipped++
 			continue
 		}
 
@@ -80,7 +78,7 @@ func main() {
 			entry.ID, filepath.Base(entry.Path), entry.Expected, actual, verdict, duration.Round(time.Millisecond))
 	}
 
-	printSummary(tp, fp, tn, fn, skipped)
+	printSummary(tp, fp, tn, fn)
 }
 
 func readOracle(path string) ([]OracleEntry, error) {
@@ -152,7 +150,7 @@ func getVerdict(expected, actual string) string {
 	return "?"
 }
 
-func printSummary(tp, fp, tn, fn, skipped int) {
+func printSummary(tp, fp, tn, fn) {
 	total := tp + fp + tn + fn
 
 	precision := 0.0
@@ -167,16 +165,6 @@ func printSummary(tp, fp, tn, fn, skipped int) {
 		recall = float64(tp) / float64(tp+fn) * 100.0
 	}
 
-	accuracy := 0.0
-	if total > 0 {
-		accuracy = float64(tp+tn) / float64(total) * 100.0
-	}
-
-	f1 := 0.0
-	if (precision + recall) > 0 {
-		f1 = 2 * (precision * recall) / (precision + recall)
-	}
-
 	fmt.Println("=========================================================================================")
 	fmt.Println("                               EVALUATION RESULTS                                        ")
 	fmt.Println("=========================================================================================")
@@ -188,7 +176,5 @@ func printSummary(tp, fp, tn, fn, skipped int) {
 	fmt.Println("-----------------------------------------------------------------------------------------")
 	fmt.Printf("Precision            : %6.2f%%\n", precision)
 	fmt.Printf("Recall               : %6.2f%%\n", recall)
-	fmt.Printf("Accuracy             : %6.2f%%\n", accuracy)
-	fmt.Printf("F1 Score             : %6.2f%%\n", f1)
 	fmt.Println("=========================================================================================")
 }
