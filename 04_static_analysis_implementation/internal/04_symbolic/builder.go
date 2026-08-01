@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"strings"
 
 	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
 	"golang.org/x/tools/go/callgraph"
@@ -11,6 +12,27 @@ import (
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
+
+// isAppFunction checks if the callee belongs to the application being analyzed
+// (and not to the standard library, runtime, or external packages).
+func isAppFunction(calleeNode *callgraph.Node, caller *ssa.Function) bool {
+	if calleeNode == nil || calleeNode.Func == nil {
+		return false
+	}
+	callee := calleeNode.Func
+	if callee.Pkg == nil {
+		return false
+	}
+	if caller != nil && caller.Pkg != nil && callee.Pkg == caller.Pkg {
+		return true
+	}
+	pkgPath := callee.Pkg.Pkg.Path()
+	if pkgPath == "main" || strings.HasPrefix(pkgPath, "benchmark/") || strings.HasPrefix(pkgPath, "github.com/SweetBloody/UniFreiburg_study_project/") {
+		return true
+	}
+	return false
+}
+
 
 type Builder struct {
 	State   model.State
@@ -160,7 +182,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 			for _, edge := range cgNode.Out {
 				if edge.Site.Pos() == v.Pos() {
 					matched = true
-					if _, isGo := edge.Site.(*ssa.Go); isGo {
+					if _, isGo := edge.Site.(*ssa.Go); isGo && isAppFunction(edge.Callee, fn) {
 						nextGID := model.GoroutineID(fmt.Sprintf("%s:%d", pos.Filename, pos.Line))
 						childRoot := b.traverse(edge.Callee, nextGID)
 						// Save to Traces map, DO NOT inline into current trace
@@ -173,7 +195,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 				for _, edge := range cgNode.Out {
 					edgePos := fn.Prog.Fset.Position(edge.Site.Pos())
 					if edgePos.Line == pos.Line {
-						if _, isGo := edge.Site.(*ssa.Go); isGo {
+						if _, isGo := edge.Site.(*ssa.Go); isGo && isAppFunction(edge.Callee, fn) {
 							nextGID := model.GoroutineID(fmt.Sprintf("%s:%d", pos.Filename, pos.Line))
 							childRoot := b.traverse(edge.Callee, nextGID)
 							b.Traces[nextGID] = append(b.Traces[nextGID], childRoot...)
@@ -202,7 +224,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 			for _, edge := range cgNode.Out {
 				if edge.Site.Pos() == v.Pos() {
 					matched = true
-					if _, isGo := edge.Site.(*ssa.Go); !isGo {
+					if _, isGo := edge.Site.(*ssa.Go); !isGo && isAppFunction(edge.Callee, fn) {
 						// Inline the function call trace!
 						childTrace := b.traverse(edge.Callee, gID)
 						nodes = append(nodes, childTrace...)
@@ -216,7 +238,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 				for _, edge := range cgNode.Out {
 					edgePos := fn.Prog.Fset.Position(edge.Site.Pos())
 					if edgePos.Line == pos.Line {
-						if _, isGo := edge.Site.(*ssa.Go); !isGo {
+						if _, isGo := edge.Site.(*ssa.Go); !isGo && isAppFunction(edge.Callee, fn) {
 							childTrace := b.traverse(edge.Callee, gID)
 							nodes = append(nodes, childTrace...)
 						}
