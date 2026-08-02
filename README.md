@@ -317,3 +317,59 @@ To get the best of both `SSA` and `AST`, we use a hybrid approach:
 [Here](04_static_analysis_implementation) is the static analysis version.
 
 Added analysis of the traces from version 3 and finding precision and recall of the analyzer.
+
+Current results:
+
+```
+=========================================================================================
+ID     | Program                      | Expected   | Actual     | Verdict  | Time      
+-----------------------------------------------------------------------------------------
+GPH-01 | gph-deadlock                 | Deadlock   | Deadlock   | TP       | 44ms      
+GPH-03 | gph-philo                    | Deadlock   | Deadlock   | TP       | 46ms      
+GPH-04 | gph-primesieve               | Deadlock   | Deadlock   | TP       | 47ms      
+GPH-05 | gph-primesieve-single        | Safe       | Deadlock   | FP       | 46ms      
+GPH-06 | gph-barrier-safe             | Safe       | Safe       | TN       | 682ms     
+GPH-07 | gph-barrier-deadlock         | Deadlock   | Safe       | FN       | 632ms     
+DNG-01 | dng-local-deadlock           | Deadlock   | Deadlock   | TP       | 618ms     
+DNG-02 | dng-local-deadlock-fixed     | Safe       | Deadlock   | FP       | 609ms     
+DNG-07 | dng-simple                   | Deadlock   | Deadlock   | TP       | 583ms     
+DNG-08 | dng-producer-consumer        | Safe       | Safe       | TN       | 594ms     
+DNG-09 | dng-ring-pattern             | Safe       | Deadlock   | FP       | 552ms     
+DNG-10 | dng-loop-variations          | Deadlock   | Deadlock   | TP       | 572ms     
+DNG-11 | dng-factorial                | Safe       | Deadlock   | FP       | 572ms     
+DNG-13 | dng-infinite-prime-sieve     | Safe       | Deadlock   | FP       | 594ms     
+DNG-14 | dng-golang-blog-prime-sieve  | Safe       | Deadlock   | FP       | 591ms     
+STD-01 | std-unmatched-send           | Deadlock   | Deadlock   | TP       | 60ms      
+STD-02 | std-unmatched-receive        | Deadlock   | Deadlock   | TP       | 85ms      
+STD-03 | std-double-send              | Deadlock   | Deadlock   | TP       | 122ms     
+STD-04 | std-double-receive           | Deadlock   | Deadlock   | TP       | 83ms      
+STD-05 | std-loop-mismatch            | Deadlock   | Deadlock   | TP       | 85ms      
+STD-06 | std-range-no-close           | Deadlock   | Deadlock   | TP       | 74ms      
+STD-07 | std-early-return             | Deadlock   | Safe       | FN       | 70ms      
+STD-08 | std-cond-deadlock            | Deadlock   | Deadlock   | TP       | 76ms      
+STD-09 | std-worker-deadlock          | Deadlock   | Deadlock   | TP       | 77ms      
+STD-10 | std-pipeline-deadlock        | Deadlock   | Deadlock   | TP       | 74ms      
+STD-11 | std-circular-wait            | Deadlock   | Safe       | FN       | 75ms      
+STD-12 | std-fork-join-safe           | Safe       | Deadlock   | FP       | 660ms     
+STD-13 | std-fork-join-deadlock       | Deadlock   | Deadlock   | TP       | 846ms     
+STD-14 | std-ping-pong-safe           | Safe       | Safe       | TN       | 650ms     
+STD-15 | std-ping-pong-deadlock       | Deadlock   | Safe       | FN       | 581ms     
+STD-16 | std-daisy-chain-safe         | Safe       | Deadlock   | FP       | 541ms     
+STD-17 | std-daisy-chain-deadlock     | Deadlock   | Deadlock   | TP       | 565ms     
+CUS-01 | cus-pipeline                 | Safe       | Safe       | TN       | 56ms      
+CUS-02 | cus-deadlock                 | Deadlock   | Deadlock   | TP       | 581ms     
+CUS-03 | cus-fanout-safe              | Safe       | Deadlock   | FP       | 620ms     
+CUS-04 | cus-fanout-deadlock          | Deadlock   | Deadlock   | TP       | 553ms     
+=========================================================================================
+                               EVALUATION RESULTS                                        
+=========================================================================================
+Total Evaluated      : 36
+True Positives (TP)  : 19
+True Negatives (TN)  : 4
+False Positives (FP) : 9
+False Negatives (FN) : 4
+-----------------------------------------------------------------------------------------
+Precision            :  67.86%
+Recall               :  82.61%
+=========================================================================================
+```
