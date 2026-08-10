@@ -51,15 +51,13 @@ To avoid exponential state-space explosion across independent channels, the anal
 
 $$\epsilon \upharpoonright_c = \epsilon$$
 
-$$(\text{Op}(m, c') \cdot \tau) \upharpoonright_c = \begin{cases} \text{Op}(m, c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\ \tau \upharpoonright_c & \text{if } c' \neq c \end{cases}$$
+$$(\text{Op}(m, c') \cdot \tau) \upharpoonright_c = \begin{cases} \text{Op}(m, c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\\\ \tau \upharpoonright_c & \text{if } c' \neq c \end{cases}$$
 
-$$(\text{If}(\text{cond}, \tau_1, \tau_2) \cdot \tau) \upharpoonright_c = \begin{cases} \text{If}(\text{cond}, \tau_1 \upharpoonright_c, \tau_2 \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } (\tau_1 \upharpoonright_c \neq \epsilon) \lor (\tau_2 \upharpoonright_c \neq \epsilon) \\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
+$$(\text{If}(\text{cond}, \tau_1, \tau_2) \cdot \tau) \upharpoonright_c = \begin{cases} \text{If}(\text{cond}, \tau_1 \upharpoonright_c, \tau_2 \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } (\tau_1 \upharpoonright_c \neq \epsilon) \lor (\tau_2 \upharpoonright_c \neq \epsilon) \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
 
-$$(\text{Loop}(b, \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Loop}(b, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
+$$(\text{Loop}(b, \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Loop}(b, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
 
-$$(\text{Range}(c', \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Range}(c, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\ \text{Loop}(*, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' \neq c \text{ and } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
-
-$$(\text{Call}(f) \cdot \tau) \upharpoonright_c = \text{Call}(f) \cdot (\tau \upharpoonright_c)$$
+$$(\text{Range}(c', \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Range}(c, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\\\ \text{Loop}(*, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' \neq c \text{ and } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
 
 ---
 
@@ -119,9 +117,6 @@ Ranging over a channel behaves as a continuous read operation until the channel 
 
 * **Termination on Close:**
   $$\frac{\Gamma(g) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau \quad \text{closed} = \text{true}}{(\Gamma, \text{true}) \longrightarrow (\Gamma[g \mapsto \tau], \text{true})}$$
-
-### 3.9 Benign Call Node Skip
-$$\frac{\Gamma(g) = \text{Call}(f) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}$$
 
 ---
 
