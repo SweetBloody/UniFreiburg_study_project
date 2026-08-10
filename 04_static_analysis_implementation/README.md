@@ -2,6 +2,23 @@
 
 This version of the analyzer builds upon the previous stage. While the first stage (Goroutines Implementation) extracted a flat list of operations (`WRITE`, `READ`, `CLOSE`), this stage builds a symbolic trace by using `!` for `WRITE`, `?` for `READ` and `X` for `CLOSE`.
 
+> **Supported Go Constructs:**
+> *   Simple channel communication: Send (`ch <- v`) and Receive (`<-ch`)
+> *   Channel closure: `close(ch)`
+> *   Conditional branching: `if` / `else` (models both execution paths)
+> *   Loops: `for` (models arbitrary loop iterations) and `for ... range` over channels
+> *   Interprocedural data-flow: Passing channels as parameters to functions and goroutines
+
+> **Known Limitations and Assumptions:**
+> 1. **Channel-Isolated Trace Projection:** Traces are projected per channel, which discards cross-channel synchronization dependencies (e.g., waiting to read from channel A before writing to channel B). This over-approximation leads to False Positives (Deadlocks) in complex topologies like ring patterns.
+> 2. **Unbuffered Channel Semantics:** All channels are treated as synchronous rendezvous (capacity = 0), regardless of their actual `make(chan T, N)` capacity in the source code.
+> 3. **Bounded State Space Exploration:** The Bounded Model Checking performs BFS with a hard limit (`maxStates = 1000`) to prevent infinite loops, defensively reporting `Deadlock` if the bound is hit.
+> 4. **Data-Flow Analysis Boundaries:** The constraint solver propagates channels via `Phi` nodes and `ChangeType` casts, but lacks full Interprocedural Pointer Alias Analysis (PTA). Channel passing through structs, maps, or closures may result in lost constraints.
+> 5. **Control Flow Interruptions:** The AST-based trace builder ignores branches that do not contain channel operations. Consequently, early exits like `return`, `break`, or `continue` are not modeled. This can lead to False Negatives (reporting `Safe` instead of `Deadlock`), as the analyzer incorrectly assumes subsequent channel operations will always execute.
+> 6. **Package-Level Variables & Init Functions:** The Call Graph traversal currently starts strictly from the `main()` function. Channels allocated globally at the package level or instantiated within `init()` blocks are not analyzed, causing any operations on them to be missed.
+
+> **Formal Mathematical Specification**: For a complete formal definition of the symbolic trace domain, transfer functions, operational semantics, and deadlock detection conditions, see **[FORMAL_SPECIFICATION.md](FORMAL_SPECIFICATION.md)**.
+
 ---
 
 ## 1. Main Data Structures and Their Fields
@@ -52,7 +69,7 @@ The base interface for all elements in our symbolic trace.
 *   **`OpNode`**: A leaf node representing a single channel operation (`!` for WRITE, `?` for READ, `X` for CLOSE). It also holds the `ContextValue` of the channel.
 *   **`LoopNode`**: Represents a loop, formatted as `loop(bounds, [body])`.
 *   **`IfNode`**: Represents conditional branching, formatted as `if(cond, [then], [else])`.
-*   **`RangeNode`**: Represents a `for ... range` loop over a channel, formatted as `?*` (which consumes all values until the channel is closed).
+*   **`RangeNode`**: Represents a `for ... range` loop over a channel, formatted as `range(?*, [body])` if a body exists, or just `?*` if it's empty (consumes all values until the channel is closed).
 
 ### `Builder`
 The main constructor of the structural trace.
@@ -102,7 +119,7 @@ Once we have the solved `State`, we build the structural trace.
 
 ### Stage 5: Deadlock Detection via Symbolic Execution (`internal/05_matcher`)
 *   **`MachineState` & State Space Exploration (BFS)**
-    Instead of relying on heuristic pattern matching or simple operation counting, the matcher implements an operational semantics machine for each channel's projected traces. A state (`MachineState`) consists of the remaining trace for each active goroutine and the channel's `Closed` boolean flag.
+    Instead of relying on heuristic pattern matching or simple operation counting, the matcher implements an operational semantics machine for each channel's projected traces. A state (`MachineState`) consists of the remaining trace for each active goroutine, the channel's `Closed` boolean flag, and a `Panicked` boolean flag (set if a goroutine performs an invalid operation like writing to a closed channel).
 *   **`NextStates()` & Normalization**
     The engine computes valid transitions from any given state:
     *   **Control Flow Normalization**: If a goroutine's head is an `if` branch, two parallel states are created (`Then` and `Else`). If it is a `loop(*)`, two states are created (exit loop immediately, or execute one iteration and repeat).

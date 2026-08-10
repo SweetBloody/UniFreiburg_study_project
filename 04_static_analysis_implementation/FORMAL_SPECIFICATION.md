@@ -1,0 +1,146 @@
+# Formal Specification of the Symbolic Trace Domain and Transfer Functions
+
+This document provides a formal mathematical definition of the **Symbolic Trace Domain**, the **Small-Step Operational Semantics (Transfer Functions)**, and the **Deadlock Detection Verdict Conditions** implemented in the static analyzer (`v4`).
+
+---
+
+## 1. Symbolic Trace Domain ($\mathbb{D}$)
+
+Let $\mathcal{C}$ be the finite set of channel identifiers in a Go program (statically abstracted by SSA allocation sites), and let $\mathcal{G}$ be the set of Goroutine identifiers.
+
+### 1.1 Elementary Symbolic Nodes
+An elementary symbolic trace node $n \in \text{Node}$ represents an atomic communication operation, a control-flow decision, or a structural loop boundary:
+
+$$n ::= \text{Op}(m, c) \mid \text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}}) \mid \text{Loop}(b, \tau_{\text{body}}) \mid \text{Range}(c, \tau_{\text{body}}) \mid \text{Call}(f)$$
+
+Where:
+* $c \in \mathcal{C}$ is a channel reference.
+* $m \in \{\text{Read}, \text{Write}, \text{Close}\}$ is the channel operation modality:
+  * $\text{Op}(\text{Write}, c)$: Send operation (`c <- v`).
+  * $\text{Op}(\text{Read}, c)$: Receive operation (`<-c`).
+  * $\text{Op}(\text{Close}, c)$: Channel close operation (`close(c)`).
+* $\text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}})$: Conditional branching node abstracted as a non-deterministic choice labeled with string "cond" (complex SSA boolean logic is not statically evaluated).
+* $\text{Loop}(b, \tau_{\text{body}})$: Loop node with iteration bound $b \in \mathbb{N} \cup \{*\}$ and loop body trace $\tau_{\text{body}}$.
+  * $b = N \in \mathbb{N}$: Statically known constant integer bound extracted as a literal (e.g. from `i < 5`, $N=5$, $N \le 100$). Complex expressions or step values are not precisely modeled. Any literal $> 100$ or failure to parse as an integer falls back to $b = *$.
+  * $b = *$: Dynamic, data-dependent, or unbounded loop iteration count.
+* $\text{Range}(c, \tau_{\text{body}})$: Range loop over channel $c$ (consumes values continuously until the channel is closed).
+* $\text{Call}(f)$: Recursion-breaker placeholder node emitted when an application-level recursive function call is encountered during static trace inlining.
+
+### 1.2 Symbolic Trace Grammar
+A **Symbolic Trace** $\tau \in \mathbb{T} = \text{Node}^*$ is a finite sequence of symbolic trace nodes:
+
+$$\tau ::= \epsilon \mid n \cdot \tau$$
+
+where $\epsilon$ denotes the empty trace, and $\cdot$ denotes trace concatenation.
+
+---
+
+## 2. Global Abstract State and Channel Projection
+
+### 2.1 Per-Channel Abstract State
+Since the analyzer projects traces and explores each channel independently, the abstract domain for a single channel's execution state is:
+
+$$S_c \in \Sigma_c = (\mathcal{G} \rightharpoonup \mathbb{T}) \times \mathbb{B}$$
+
+A machine state $S_c = (\Gamma, \text{closed})$ consists of:
+* $\Gamma: \mathcal{G} \rightharpoonup \mathbb{T}$, a partial function mapping each active goroutine $g \in \mathcal{G}$ to its remaining symbolic trace $\tau$.
+* $\text{closed} \in \{\text{true}, \text{false}\}$, the boolean status of the channel indicating if it has been closed.
+
+### 2.2 Channel Sub-Alphabet Projection ($\upharpoonright_c$)
+To avoid exponential state-space explosion across independent channels, the analyzer projects goroutine traces onto individual channels $c \in \mathcal{C}$. The projection operator $\tau \upharpoonright_c : \mathbb{T} \to \mathbb{T}$ is defined inductively:
+
+$$\epsilon \upharpoonright_c = \epsilon$$
+
+$$(\text{Op}(m, c') \cdot \tau) \upharpoonright_c = \begin{cases} \text{Op}(m, c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\ \tau \upharpoonright_c & \text{if } c' \neq c \end{cases}$$
+
+$$(\text{If}(\text{cond}, \tau_1, \tau_2) \cdot \tau) \upharpoonright_c = \begin{cases} \text{If}(\text{cond}, \tau_1 \upharpoonright_c, \tau_2 \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } (\tau_1 \upharpoonright_c \neq \epsilon) \lor (\tau_2 \upharpoonright_c \neq \epsilon) \\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
+
+$$(\text{Loop}(b, \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Loop}(b, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
+
+$$(\text{Range}(c', \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Range}(c, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\ \text{Loop}(*, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' \neq c \text{ and } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
+
+$$(\text{Call}(f) \cdot \tau) \upharpoonright_c = \text{Call}(f) \cdot (\tau \upharpoonright_c)$$
+
+---
+
+## 3. Transfer Functions (Small-Step Operational Semantics)
+
+We define the small-step transition relation $\longrightarrow \subseteq \Sigma_c \times \Sigma_c$ for a projected machine state on channel $c$. Let $\Gamma[g \mapsto \tau']$ denote updating the trace of goroutine $g$ to $\tau'$.
+
+### 3.1 Synchronous Communication (Rendezvous Rule)
+For synchronous unbuffered channels (buffer capacity is not modeled), communication requires simultaneous rendezvous between a sender and a receiver on channel $c$:
+
+$$\frac{\Gamma(g_1) = \text{Op}(\text{Write}, c) \cdot \tau_1 \quad \Gamma(g_2) = \text{Op}(\text{Read}, c) \cdot \tau_2 \quad g_1 \neq g_2 \quad \text{closed} = \text{false}}{(\Gamma, \text{false}) \longrightarrow (\Gamma[g_1 \mapsto \tau_1, g_2 \mapsto \tau_2], \text{false})}$$
+
+### 3.2 Channel Close Rule
+Closing an open channel transitions the channel's closed status to true:
+
+$$\frac{\Gamma(g) = \text{Op}(\text{Close}, c) \cdot \tau \quad \text{closed} = \text{false}}{(\Gamma, \text{false}) \longrightarrow (\Gamma[g \mapsto \tau], \text{true})}$$
+
+### 3.3 Read from Closed Channel Rule
+In Go, receiving from a closed channel proceeds immediately without blocking (returning the zero value):
+
+$$\frac{\Gamma(g) = \text{Op}(\text{Read}, c) \cdot \tau \quad \text{closed} = \text{true}}{(\Gamma, \text{true}) \longrightarrow (\Gamma[g \mapsto \tau], \text{true})}$$
+
+### 3.4 Write/Close on Closed Channel (Panic Rule)
+Sending to or closing an already closed channel causes a panic. In the abstract semantics, this is an immediate terminal transition yielding the `VerdictPanic` state (halting further BFS exploration for this channel):
+
+$$\frac{\Gamma(g) = \text{Op}(\text{Write}, c) \cdot \tau \lor \Gamma(g) = \text{Op}(\text{Close}, c) \cdot \tau \quad \text{closed} = \text{true}}{(\Gamma, \text{true}) \longrightarrow \text{VerdictPanic}}$$
+
+### 3.5 Conditional Branching Rule
+When a goroutine reaches an `If` node, the abstract interpreter explores both paths non-deterministically:
+
+$$\frac{\Gamma(g) = \text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{then}} \cdot \tau], \text{closed}) \quad \text{and} \quad (\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{else}} \cdot \tau], \text{closed})}$$
+
+### 3.6 Deterministic Bounded Loop Unrolling ($b = N \in \mathbb{N}$)
+When a loop has a statically known integer bound $N$ ($0 \le N \le 100$), the analyzer unrolls the loop deterministically without creating artificial exit branches:
+
+* **Case $N = 0$ (Zero iterations):**
+  $$\frac{\Gamma(g) = \text{Loop}(0, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}$$
+
+* **Case $N = 1$ (Single iteration):**
+  $$\frac{\Gamma(g) = \text{Loop}(1, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \tau], \text{closed})}$$
+
+* **Case $N > 1$ (Recursive unrolling):**
+  $$\frac{\Gamma(g) = \text{Loop}(N, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(N-1, \tau_{\text{body}}) \cdot \tau], \text{closed})}$$
+
+### 3.7 Non-Deterministic Loop Abstraction ($b = *$)
+For unbounded loops or loops with data-dependent conditions, the analyzer abstracts the loop by generating two successor states (exit loop or execute one iteration and re-evaluate):
+
+$$\frac{\Gamma(g) = \text{Loop}(*, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed}) \quad \text{and} \quad (\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(*, \tau_{\text{body}}) \cdot \tau], \text{closed})}$$
+
+### 3.8 Range over Channel
+Ranging over a channel behaves as a continuous read operation until the channel is closed:
+
+* **Rendezvous iteration:**
+  $$\frac{\Gamma(g_1) = \text{Op}(\text{Write}, c) \cdot \tau_1 \quad \Gamma(g_2) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau_2 \quad g_1 \neq g_2 \quad \text{closed} = \text{false}}{(\Gamma, \text{false}) \longrightarrow (\Gamma[g_1 \mapsto \tau_1, g_2 \mapsto \tau_{\text{body}} \cdot \text{Range}(c, \tau_{\text{body}}) \cdot \tau_2], \text{false})}$$
+
+  (Symmetrically, if $g_1$ has `Range` and $g_2$ has `Write`, the transition applies identically in reverse).
+
+* **Termination on Close:**
+  $$\frac{\Gamma(g) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau \quad \text{closed} = \text{true}}{(\Gamma, \text{true}) \longrightarrow (\Gamma[g \mapsto \tau], \text{true})}$$
+
+### 3.9 Benign Call Node Skip
+$$\frac{\Gamma(g) = \text{Call}(f) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}$$
+
+---
+
+## 4. Deadlock Verdict Definition
+
+Let $\mathcal{R}(S_0)$ be the set of all machine states reachable from the initial state $S_0 = (\Gamma_0, \text{false})$ via the small-step transition relation $\longrightarrow^*$.
+
+*Implementation Note:* The tool performs Bounded Model Checking (Bounded BFS) to explore $\mathcal{R}(S_0)$ with a heuristic limit (`maxStates = 1000`). If the limit is exceeded, a `Deadlock` is reported defensively to avoid state-space explosion.
+
+A reachable state $S \in \mathcal{R}(S_0)$ is classified as a **Deadlock State** if and only if:
+
+1. **Terminality:** No outgoing transition exists from $S$:
+   $$\forall S' \in \Sigma_c, \quad S \not\longrightarrow S'$$
+2. **Blocked Communication:** There exists at least one goroutine $g \in \text{dom}(\Gamma)$ whose remaining trace $\Gamma(g)$ is non-empty and begins with a blocking operation:
+   $$\exists g \in \text{dom}(\Gamma), \quad \Gamma(g) = \text{Op}(m, c) \cdot \tau \quad \text{where } m \in \{\text{Read}, \text{Write}\} \quad \lor \quad \Gamma(g) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau$$
+3. **No Progress:** Every goroutine $g \in \text{dom}(\Gamma)$ with $\Gamma(g) \neq \epsilon$ is blocked on a channel communication operation for which no rendezvous partner or closed-channel interaction is available.
+
+If such a state $S$ exists in $\mathcal{R}(S_0)$ (or the BFS bound is hit), the analyzer yields an internal **`VerdictDeadlock`** for channel $c$.
+If a transition rule yields **`VerdictPanic`**, the exploration halts immediately and returns **`VerdictPanic`**.
+Otherwise, if all terminal states in $\mathcal{R}(S_0)$ have empty traces ($\forall g, \Gamma(g) = \epsilon$), the analyzer yields internal **`VerdictSafe`**.
+
+*Reporting Note:* The internal analyzer distinguishes between Deadlock, Panic, and Safe. However, the external `eval/main.go` evaluation script currently maps all non-Safe verdicts (including `VerdictPanic`) to a unified `Deadlock` label for binary classification benchmarking against the dataset oracle.

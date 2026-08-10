@@ -318,58 +318,73 @@ To get the best of both `SSA` and `AST`, we use a hybrid approach:
 
 Added analysis of the traces from version 3 and finding precision and recall of the analyzer.
 
+> **Supported Go Constructs:**
+> *   Simple channel communication: Send (`ch <- v`) and Receive (`<-ch`)
+> *   Channel closure: `close(ch)`
+> *   Conditional branching: `if` / `else` (models both execution paths)
+> *   Loops: `for` (models arbitrary loop iterations) and `for ... range` over channels
+> *   Interprocedural data-flow: Passing channels as parameters to functions and goroutines
+
+> **Known Limitations and Assumptions:**
+> 1. **Channel-Isolated Trace Projection:** Traces are projected per channel, which discards cross-channel synchronization dependencies (e.g., waiting to read from channel A before writing to channel B). This over-approximation leads to False Positives (Deadlocks) in complex topologies like ring patterns.
+> 2. **Unbuffered Channel Semantics:** All channels are treated as synchronous rendezvous (capacity = 0), regardless of their actual `make(chan T, N)` capacity in the source code.
+> 3. **Bounded State Space Exploration:** The Bounded Model Checking performs BFS with a hard limit (`maxStates = 1000`) to prevent infinite loops, defensively reporting `Deadlock` if the bound is hit.
+> 4. **Data-Flow Analysis Boundaries:** The constraint solver propagates channels via `Phi` nodes and `ChangeType` casts, but lacks full Interprocedural Pointer Alias Analysis (PTA). Channel passing through structs, maps, or closures may result in lost constraints.
+> 5. **Control Flow Interruptions:** The AST-based trace builder ignores branches that do not contain channel operations. Consequently, early exits like `return`, `break`, or `continue` are not modeled. This can lead to False Negatives (reporting `Safe` instead of `Deadlock`), as the analyzer incorrectly assumes subsequent channel operations will always execute.
+> 6. **Package-Level Variables & Init Functions:** The Call Graph traversal currently starts strictly from the `main()` function. Channels allocated globally at the package level or instantiated within `init()` blocks are not analyzed, causing any operations on them to be missed.
+
 Current results:
 
 ```
 =========================================================================================
 ID     | Program                      | Expected   | Actual     | Verdict  | Time      
 -----------------------------------------------------------------------------------------
-GPH-01 | gph-deadlock                 | Deadlock   | Deadlock   | TP       | 44ms      
-GPH-03 | gph-philo                    | Deadlock   | Deadlock   | TP       | 46ms      
-GPH-04 | gph-primesieve               | Deadlock   | Deadlock   | TP       | 47ms      
-GPH-05 | gph-primesieve-single        | Safe       | Deadlock   | FP       | 46ms      
-GPH-06 | gph-barrier-safe             | Safe       | Safe       | TN       | 682ms     
-GPH-07 | gph-barrier-deadlock         | Deadlock   | Safe       | FN       | 632ms     
-DNG-01 | dng-local-deadlock           | Deadlock   | Deadlock   | TP       | 618ms     
-DNG-02 | dng-local-deadlock-fixed     | Safe       | Deadlock   | FP       | 609ms     
-DNG-07 | dng-simple                   | Deadlock   | Deadlock   | TP       | 583ms     
-DNG-08 | dng-producer-consumer        | Safe       | Safe       | TN       | 594ms     
-DNG-09 | dng-ring-pattern             | Safe       | Deadlock   | FP       | 552ms     
-DNG-10 | dng-loop-variations          | Deadlock   | Deadlock   | TP       | 572ms     
-DNG-11 | dng-factorial                | Safe       | Deadlock   | FP       | 572ms     
-DNG-13 | dng-infinite-prime-sieve     | Safe       | Deadlock   | FP       | 594ms     
-DNG-14 | dng-golang-blog-prime-sieve  | Safe       | Deadlock   | FP       | 591ms     
-STD-01 | std-unmatched-send           | Deadlock   | Deadlock   | TP       | 60ms      
-STD-02 | std-unmatched-receive        | Deadlock   | Deadlock   | TP       | 85ms      
-STD-03 | std-double-send              | Deadlock   | Deadlock   | TP       | 122ms     
-STD-04 | std-double-receive           | Deadlock   | Deadlock   | TP       | 83ms      
-STD-05 | std-loop-mismatch            | Deadlock   | Deadlock   | TP       | 85ms      
-STD-06 | std-range-no-close           | Deadlock   | Deadlock   | TP       | 74ms      
-STD-07 | std-early-return             | Deadlock   | Safe       | FN       | 70ms      
-STD-08 | std-cond-deadlock            | Deadlock   | Deadlock   | TP       | 76ms      
-STD-09 | std-worker-deadlock          | Deadlock   | Deadlock   | TP       | 77ms      
-STD-10 | std-pipeline-deadlock        | Deadlock   | Deadlock   | TP       | 74ms      
-STD-11 | std-circular-wait            | Deadlock   | Safe       | FN       | 75ms      
-STD-12 | std-fork-join-safe           | Safe       | Deadlock   | FP       | 660ms     
-STD-13 | std-fork-join-deadlock       | Deadlock   | Deadlock   | TP       | 846ms     
-STD-14 | std-ping-pong-safe           | Safe       | Safe       | TN       | 650ms     
-STD-15 | std-ping-pong-deadlock       | Deadlock   | Safe       | FN       | 581ms     
-STD-16 | std-daisy-chain-safe         | Safe       | Deadlock   | FP       | 541ms     
-STD-17 | std-daisy-chain-deadlock     | Deadlock   | Deadlock   | TP       | 565ms     
-CUS-01 | cus-pipeline                 | Safe       | Safe       | TN       | 56ms      
-CUS-02 | cus-deadlock                 | Deadlock   | Deadlock   | TP       | 581ms     
-CUS-03 | cus-fanout-safe              | Safe       | Deadlock   | FP       | 620ms     
-CUS-04 | cus-fanout-deadlock          | Deadlock   | Deadlock   | TP       | 553ms     
+GPH-01 | gph-deadlock                 | Deadlock   | Deadlock   | TP       | 65ms      
+GPH-03 | gph-philo                    | Deadlock   | Deadlock   | TP       | 50ms      
+GPH-04 | gph-primesieve               | Deadlock   | Deadlock   | TP       | 50ms      
+GPH-05 | gph-primesieve-single        | Safe       | Deadlock   | FP       | 49ms      
+GPH-06 | gph-barrier-safe             | Safe       | Safe       | TN       | 593ms     
+GPH-07 | gph-barrier-deadlock         | Deadlock   | Deadlock   | TP       | 628ms     
+DNG-01 | dng-local-deadlock           | Deadlock   | Deadlock   | TP       | 603ms     
+DNG-02 | dng-local-deadlock-fixed     | Safe       | Safe       | TN       | 550ms     
+DNG-07 | dng-simple                   | Deadlock   | Deadlock   | TP       | 550ms     
+DNG-08 | dng-producer-consumer        | Safe       | Safe       | TN       | 578ms     
+DNG-09 | dng-ring-pattern             | Safe       | Deadlock   | FP       | 587ms     
+DNG-10 | dng-loop-variations          | Deadlock   | Deadlock   | TP       | 561ms     
+DNG-11 | dng-factorial                | Safe       | Deadlock   | FP       | 571ms     
+DNG-13 | dng-infinite-prime-sieve     | Safe       | Deadlock   | FP       | 683ms     
+DNG-14 | dng-golang-blog-prime-sieve  | Safe       | Deadlock   | FP       | 1.167s    
+STD-01 | std-unmatched-send           | Deadlock   | Deadlock   | TP       | 148ms     
+STD-02 | std-unmatched-receive        | Deadlock   | Deadlock   | TP       | 145ms     
+STD-03 | std-double-send              | Deadlock   | Deadlock   | TP       | 158ms     
+STD-04 | std-double-receive           | Deadlock   | Deadlock   | TP       | 131ms     
+STD-05 | std-loop-mismatch            | Deadlock   | Deadlock   | TP       | 58ms      
+STD-06 | std-range-no-close           | Deadlock   | Deadlock   | TP       | 55ms      
+STD-07 | std-early-return             | Deadlock   | Safe       | FN       | 54ms      
+STD-08 | std-cond-deadlock            | Deadlock   | Deadlock   | TP       | 54ms      
+STD-09 | std-worker-deadlock          | Deadlock   | Deadlock   | TP       | 58ms      
+STD-10 | std-pipeline-deadlock        | Deadlock   | Deadlock   | TP       | 55ms      
+STD-11 | std-circular-wait            | Deadlock   | Safe       | FN       | 59ms      
+STD-12 | std-fork-join-safe           | Safe       | Safe       | TN       | 710ms     
+STD-13 | std-fork-join-deadlock       | Deadlock   | Safe       | FN       | 717ms     
+STD-14 | std-ping-pong-safe           | Safe       | Safe       | TN       | 664ms     
+STD-15 | std-ping-pong-deadlock       | Deadlock   | Safe       | FN       | 607ms     
+STD-16 | std-daisy-chain-safe         | Safe       | Safe       | TN       | 552ms     
+STD-17 | std-daisy-chain-deadlock     | Deadlock   | Deadlock   | TP       | 549ms     
+CUS-01 | cus-pipeline                 | Safe       | Safe       | TN       | 52ms      
+CUS-02 | cus-deadlock                 | Deadlock   | Deadlock   | TP       | 546ms     
+CUS-03 | cus-fanout-safe              | Safe       | Safe       | TN       | 572ms     
+CUS-04 | cus-fanout-deadlock          | Deadlock   | Deadlock   | TP       | 535ms     
 =========================================================================================
                                EVALUATION RESULTS                                        
 =========================================================================================
 Total Evaluated      : 36
 True Positives (TP)  : 19
-True Negatives (TN)  : 4
-False Positives (FP) : 9
+True Negatives (TN)  : 8
+False Positives (FP) : 5
 False Negatives (FN) : 4
 -----------------------------------------------------------------------------------------
-Precision            :  67.86%
+Precision            :  79.17%
 Recall               :  82.61%
 =========================================================================================
 ```

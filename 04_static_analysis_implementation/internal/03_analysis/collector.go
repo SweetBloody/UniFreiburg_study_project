@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"strings"
 
 	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
 	"golang.org/x/tools/go/callgraph"
@@ -54,10 +55,20 @@ func (c *Collector) Collect(prog *ssa.Program) {
 }
 
 func (c *Collector) traverse(node *callgraph.Node, gID model.GoroutineID) {
-	fn := node.Func
-	if fn == nil {
+	if node == nil || node.Func == nil {
 		return
 	}
+
+	// Filter out standard library and runtime functions to avoid collecting irrelevant channels
+	if node.Func.Pkg == nil {
+		return
+	}
+	pkgPath := node.Func.Pkg.Pkg.Path()
+	if pkgPath != "main" && !strings.HasPrefix(pkgPath, "benchmark/") && !strings.HasPrefix(pkgPath, "github.com/SweetBloody/UniFreiburg_study_project/") {
+		return
+	}
+
+	fn := node.Func
 
 	// Create a unique visit key based on function and goroutine to prevent infinite loops
 	visitKey := fmt.Sprintf("%s@%s", fn.String(), gID)
@@ -125,6 +136,16 @@ func (c *Collector) processInstruction(instr ssa.Instruction, gID model.Goroutin
 					Target: targetVal,
 				})
 			}
+		}
+
+	case *ssa.ChangeType:
+		if isChanType(instr.Type()) {
+			targetVal := model.ContextValue{Value: model.MakeValueID(instr), Goroutine: gID}
+			sourceVal := model.ContextValue{Value: model.MakeValueID(instr.X), Goroutine: gID}
+			c.Constraints = append(c.Constraints, model.Constraint{
+				Source: sourceVal,
+				Target: targetVal,
+			})
 		}
 	}
 }

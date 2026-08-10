@@ -13,6 +13,7 @@ import (
 type MachineState struct {
 	Goroutines map[model.GoroutineID][]model.TraceNode
 	Closed     bool
+	Panicked   bool
 }
 
 // cloneState creates a deep copy of the MachineState
@@ -20,6 +21,7 @@ func cloneState(s MachineState) MachineState {
 	clone := MachineState{
 		Goroutines: make(map[model.GoroutineID][]model.TraceNode),
 		Closed:     s.Closed,
+		Panicked:   s.Panicked,
 	}
 	for gID, trace := range s.Goroutines {
 		if len(trace) > 0 {
@@ -43,7 +45,7 @@ func HashState(s MachineState) string {
 	sort.Strings(gIDs)
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("C:%v;", s.Closed))
+	b.WriteString(fmt.Sprintf("C:%v;P:%v;", s.Closed, s.Panicked))
 	for _, gID := range gIDs {
 		b.WriteString(gID)
 		b.WriteString(":[")
@@ -150,6 +152,7 @@ func NextStates(s MachineState) []MachineState {
 					// Double close panic - terminates this goroutine
 					ns := cloneState(s)
 					ns.Goroutines[gID] = nil
+					ns.Panicked = true
 					nextStates = append(nextStates, ns)
 				}
 			} else if op.OpType == model.OpRead && s.Closed {
@@ -161,6 +164,7 @@ func NextStates(s MachineState) []MachineState {
 				// Send to closed channel -> PANIC
 				ns := cloneState(s)
 				ns.Goroutines[gID] = nil
+				ns.Panicked = true
 				nextStates = append(nextStates, ns)
 			}
 		} else if _, ok := head.(model.RangeNode); ok {

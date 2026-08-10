@@ -157,6 +157,9 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 			return false
 
 		case *ast.SendStmt:
+			rhsNodes := b.traverseASTNode(v.Value, fn, cgNode, gID)
+			nodes = append(nodes, rhsNodes...)
+
 			// Use ValueForExpr to link AST to SSA
 			val, _ := fn.ValueForExpr(v.Chan)
 			if val != nil {
@@ -166,6 +169,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 					nodes = append(nodes, model.OpNode{OpType: model.OpWrite, Channel: ctxVal})
 				}
 			}
+			return false 
 
 		case *ast.UnaryExpr:
 			// Reading
