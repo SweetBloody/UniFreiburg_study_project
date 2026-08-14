@@ -15,7 +15,7 @@ func PrintResults(collector *analysis.Collector) {
 		param := target.Param
 		id := target.ID
 
-		fmt.Printf("Function parameter: %s %s\n\n", id, param.Type())
+		fmt.Printf("Function parameter: %s (%s)\n\n", id, param.Type())
 
 		sitesMap := collector.State[id]
 		if len(sitesMap) == 0 {

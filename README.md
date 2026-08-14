@@ -112,6 +112,8 @@ make(chan T)
 Example:
 
 ```go
+package main
+
 func worker(ch chan int) {}
 
 func main() {
@@ -123,7 +125,7 @@ func main() {
 Expected result:
 
 ```
-worker.ch -> { main.go:5 make(chan int) }
+worker.ch (chan int) -> { main.go:6 make(chan int) }
 ```
 
 ### Input
@@ -150,12 +152,13 @@ For each function parameter whose type is `chan T`, `<-chan T`, or `chan<- T`, t
 Example output:
 
 ```
-Function parameter: worker.ch chan int
+Function parameter: worker.ch (chan int)
 
 Possible channel allocation sites:
-- main.go:5:10 make(chan int)
 - main.go:6:10 make(chan int)
 ```
+
+*(Note: This output corresponds to the [first version](01_mvp_implementation). The actual output of the latest [fourth version](04_static_analysis_implementation) is more detailed and includes more information about the actual channel flows.)*
 
 ### Abstract domain
 
@@ -178,10 +181,10 @@ Examples:
 
 ### Abstract state
 
-The analysis state maps SSA values and other analysis entities to sets of channel allocation sites:
+The analysis state maps contextual SSA values (variables indexed by their parent function and paired with the executing goroutine) to sets of channel allocation sites:
 
 ```
-State : Value -> Set<ChannelAllocationSite>
+State : ContextValue -> Set<ChannelAllocationSite>
 ```
 
 Examples of analysis values:
@@ -195,8 +198,8 @@ Examples of analysis values:
 Example:
 
 ```
-State[x] = {AllocSite#1}
-State[worker.ch] = {AllocSite#1, AllocSite#2}
+State[main.x@main] = {AllocSite#1}
+State[worker.ch@main.go:15] = {AllocSite#1, AllocSite#2}
 ```
 
 ### Constraint form
@@ -220,37 +223,38 @@ State[target] = State[target] ∪ State[source]
 #### Channel creation
 
 ```
-make(chan T) -> State[v] contains AllocSite
+[p] v := make(chan T) ⟹ p ∈ State[v]
 ```
+*(where `p` is the allocation site program point)*
 
 #### Assignment
 
 ```
-State[dst] ⊇ State[src]
+[p] dst := src ⟹ State[src] ⊆ State[dst]
 ```
 
 #### Phi node
 
 ```
-State[phi] ⊇ State[input]
+[p] phi := φ(..., input, ...) ⟹ State[input] ⊆ State[phi]
 ```
 
 #### Function call
 
 ```
-State[param] ⊇ State[arg]
+[p] call func(..., arg, ...) ⟹ State[arg] ⊆ State[param]
 ```
 
 #### Return
 
 ```
-State[func.return] ⊇ State[value]
+[p] return value ⟹ State[value] ⊆ State[func.return]
 ```
 
 #### Call result
 
 ```
-State[result] ⊇ State[func.return]
+[p] result := call func(...) ⟹ State[func.return] ⊆ State[result]
 ```
 
 
@@ -270,7 +274,7 @@ The analysis is:
 - `conservative`, because it over-approximates possible channel flows
 - `may-analysis`, because it computes which channels may flow into each parameter
 - `forward`, because channel-flow information is propagated from channel creation sites to later uses
-- `interprocedural`, because information is propagated across function calls
+- `interprocedural`, because information is propagated across function calls. *(Note: The analysis is monolithic and whole-program over the complete call graph starting from `main`. It does not compute modular procedure summaries).*
 
 The analysis may report extra possible channel flows, but it should not miss real channel flows within the supported language subset.
 
@@ -312,9 +316,10 @@ To get the best of both `SSA` and `AST`, we use a hybrid approach:
 
 > We still use `SSA`-builder but with a flag `ssa.GlobalDebug` which allows to save the debug information which helps to link the exact AST nodes with their corresponding SSA values.
 
-## Static Analysis (v4)
+## Static Analysis (v4) (ACTUAL)
 
 [Here](04_static_analysis_implementation) is the static analysis version.
+[Here](04_static_analysis_implementation/FORMAL_SPECIFICATION.md) is the formal specification.
 
 Added analysis of the traces from version 3 and finding precision and recall of the analyzer.
 

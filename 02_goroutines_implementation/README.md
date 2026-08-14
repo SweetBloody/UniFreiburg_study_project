@@ -9,10 +9,10 @@ This version of the analyzer is able to distinguish between function calls occur
 All key structures are located in the `internal/model` and `internal/03_analysis` packages.
 
 ### `ValueID` (string)
-A simple string identifier of a variable from the source code. The analyzer gives each variable a unique name (for example, `main.ch` or `worker.t1`).
+A string identifier of an SSA value, such as a parameter, temporary value, call result, or channel allocation. The analyzer gives each variable a unique name (for example, `main.ch` or `worker.t1`).
 
 ### `GoroutineID` (string)
-Identifier of a specific thread (goroutine). 
+Identifier of an abstract goroutine context. 
 *   For the main goroutine, it is `"main"`.
 *   For new goroutines, it is generated at the call site, e.g. `"main.go:15"` (the file and line number where `go func()` was written).
 
@@ -51,7 +51,7 @@ The main "gatherer" of information during code traversal.
 *   **`State`**: The knowledge base about where channels are created.
 *   **`Constraints`**: The collected data transfer rules.
 *   **`Operations`**: The collected flat list of all `READ`/`WRITE`/`CLOSE` operations.
-*   **`visited`**: List of visited functions (to prevent infinite recursion).
+*   **`visited`**: Set of already visited function/goroutine-context pairs. (to prevent infinite recursion).
 
 ---
 
@@ -79,7 +79,7 @@ Code analysis occurs in several stages:
 *   **`processInstruction(instr, gID)`**
     Analyzes every line:
     *   If it sees `make(chan)`, it records this channel in the `State` base.
-    *   If it sees a read, write (`<-`) or `close()`, it saves this operation in `Operations`, noting which goroutine did it.
+    *   If it sees a direct send (`ch <- v`), direct receive (`<-ch`) or `close(ch)`, it saves this operation in `Operations`, noting which goroutine did it. Select statements are not handled in this version.
     *   If it sees a control flow branch node (`*ssa.Phi`), which occurs when a channel is selected via an `if/else` condition, it generates rules to merge data flows from all possible branches into the resulting variable.
 
 ### Stage 3: Solver Operation (`internal/03_analysis/solver.go`)
@@ -88,11 +88,11 @@ Code analysis occurs in several stages:
 
 ### Stage 4: Building the Final Domain (`internal/04_report/printer.go`)
 *   **`PrintResults(collector)`**
-    The solver has finished, and now we know exactly which actual channel each contextual variable points to. The printer takes our flat list of `Operations` and sorts it out:
+    The solver has finished, and now we know which channel allocation sites each contextual variable may point to. The printer takes our flat list of `Operations` and sorts it out:
     1. Takes an operation (e.g., `WRITE` to variable `X`).
-    2. Asks the Solver: "Which actual channel does `X` point to?".
+    2. Asks the Solver: "Which channel allocation sites may `X` point to?".
     3. Puts this operation into the final structure by hierarchy: `Actual Channel ➔ Goroutine ➔ List of actions`.
-    4. Prints a beautiful report.
+    4. Prints a structured report.
 
 ## 3. Example output
 

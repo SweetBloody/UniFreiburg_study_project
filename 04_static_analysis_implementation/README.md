@@ -26,10 +26,10 @@ This version of the analyzer builds upon the previous stage. While the first sta
 All key structures are located in the `internal/model`, `internal/03_analysis`, and `internal/04_symbolic` packages.
 
 ### `ValueID` (string)
-A simple string identifier of a variable from the source code. The analyzer gives each variable a unique name (for example, `main.ch` or `worker.t1`).
+A string identifier of an SSA value, such as a parameter, temporary value, call result, or channel allocation. The analyzer gives each variable a unique name (for example, `main.ch` or `worker.t1`).
 
 ### `GoroutineID` (string)
-Identifier of a specific thread (goroutine). 
+Identifier of an abstract goroutine context. 
 *   For the main goroutine, it is `"main"`.
 *   For new goroutines, it is generated at the call site, e.g. `"main.go:15"` (the file and line number where `go func()` was written).
 
@@ -62,7 +62,7 @@ The knowledge map of the system: `map[ContextValue]map[AllocSite]struct{}`.
 The main "gatherer" of information during code traversal.
 *   **`State`**: The knowledge base about where channels are created.
 *   **`Constraints`**: The collected data transfer rules.
-*   **`visited`**: List of visited functions (to prevent infinite recursion).
+*   **`visited`**: Set of already visited function/goroutine-context pairs. (to prevent infinite recursion).
 
 ### `TraceNode` (interface)
 The base interface for all elements in our symbolic trace.
@@ -74,7 +74,7 @@ The base interface for all elements in our symbolic trace.
 ### `Builder`
 The main constructor of the structural trace.
 *   **`State`**: Uses the solved data flow state to filter operations.
-*   **`visited`**: List of visited functions to prevent infinite recursion.
+*   **`visited`**: Set of already visited function/goroutine-context pairs. to prevent infinite recursion.
 
 ---
 
