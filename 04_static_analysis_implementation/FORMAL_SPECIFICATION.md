@@ -47,7 +47,7 @@ For channel operations:
 * **Close:** $\text{Extract}(\text{close}(c)) \implies \text{Op}(\text{Close}, c)$
 
 For control flow:
-* **Goroutine Spawn:** $\text{Extract}(\text{go func() } \{ A \}) \implies$ Spawns a new concurrent trace $\text{Extract}(A)$. *(Note: The `go` statement does not produce a symbolic node in the parent trace, but rather initializes a new goroutine $g' \in \mathcal{G}$ in the initial machine state).*
+* **Goroutine Spawn:** $\text{Extract}(\text{go func() } \{ A \}) \implies$ Spawns a new concurrent trace $\text{Extract}(A)$. *(Note: The `go` statement does not produce a symbolic node in the parent trace, but rather initializes a new goroutine $g^\prime \in \mathcal{G}$ in the initial machine state).*
 * **Conditional:** $\text{Extract}(\text{if cond } \{ A \} \text{ else } \{ B \}) \implies \text{If}(\text{cond}, \text{Extract}(A), \text{Extract}(B))$
 * **Bounded Loop:** $\text{Extract}(\text{for } i := 0; i < N; i\text{++} \{ A \}) \implies \text{Loop}(N, \text{Extract}(A))$
 * **Unbounded Loop:** $\text{Extract}(\text{for cond } \{ A \}) \implies \text{Loop}(*, \text{Extract}(A))$
@@ -137,7 +137,7 @@ For unbounded loops or loops with data-dependent conditions, the analyzer abstra
   $$\frac{\Gamma(g) = \text{Loop}(*, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}$$
 
 * **Execute Iteration:**
-  $$\frac{\Gamma(g) = \text{Loop}(*, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(*, \tau_{\text{body}}) \cdot \tau], \text{closed})}$$
+  $$\frac{\Gamma(g) = \text{Loop}(\ast, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(\ast, \tau_{\text{body}}) \cdot \tau], \text{closed})}$$
 
 ### 3.8 Range over Channel
 Ranging over a channel behaves as a continuous read operation until the channel is closed:
@@ -172,7 +172,7 @@ Otherwise, if all terminal states in $\mathcal{R}(S_0)$ have empty traces ($\for
 
 ### 4.1 Termination and Abstract Domain Considerations
 
-The abstract domain of symbolic traces $\mathbb{T}$ is technically infinite, as unbounded loops ($\text{Loop}(*, \tau)$) can unfold indefinitely. Consequently, the abstract state space $\Sigma_c$ is also infinite. Because of this, the termination of the analysis is not guaranteed by the domain itself. 
+The abstract domain of symbolic traces $\mathbb{T}$ is technically infinite, as unbounded loops ($\text{Loop}(\ast, \tau)$) can unfold indefinitely. Consequently, the abstract state space $\Sigma_c$ is also infinite. Because of this, the termination of the analysis is not guaranteed by the domain itself. 
 
 Instead, termination is enforced strictly via a heuristic bounded step count (Bounded BFS limit) and cycle detection (memoization of visited abstract states). If the state space exploration exceeds the predefined limit (`maxStates = 1000`), the analyzer conservatively halts and reports a `VerdictDeadlock`.
 
