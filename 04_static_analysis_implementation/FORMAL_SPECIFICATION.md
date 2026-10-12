@@ -47,7 +47,7 @@ For channel operations:
 * **Close:** $\text{Extract}(\text{close}(c)) \implies \text{Op}(\text{Close}, c)$
 
 For control flow:
-* **Goroutine Spawn:** $\text{Extract}(\text{go func() } \{ A \}) \implies$ Spawns a new concurrent trace $\text{Extract}(A)$. *(Note: The `go` statement does not produce a symbolic node in the parent trace, but rather initializes a new goroutine $g^\prime \in \mathcal{G}$ in the initial machine state).*
+* **Goroutine Spawn:** $\text{Extract}(\text{go func() } \{ A \}) \implies$ Spawns a new concurrent trace $\text{Extract}(A)$. *(Note: The `go` statement does not produce a symbolic node in the parent trace, but rather initializes a new goroutine `g'` in the goroutine set `G` in the initial machine state).*
 * **Conditional:** $\text{Extract}(\text{if cond } \{ A \} \text{ else } \{ B \}) \implies \text{If}(\text{cond}, \text{Extract}(A), \text{Extract}(B))$
 * **Bounded Loop:** $\text{Extract}(\text{for } i := 0; i < N; i\text{++} \{ A \}) \implies \text{Loop}(N, \text{Extract}(A))$
 * **Unbounded Loop:** $\text{Extract}(\text{for cond } \{ A \}) \implies \text{Loop}(*, \text{Extract}(A))$
@@ -81,7 +81,7 @@ $$(\text{If}(\text{cond}, \tau_1, \tau_2) \cdot \tau) \upharpoonright_c = \begin
 
 $$(\text{Loop}(b, \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Loop}(b, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
 
-$$(\text{Range}(c', \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Range}(c, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\\\ \text{Loop}(*, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' \neq c \text{ and } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
+$$(\text{Range}(c', \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Range}(c, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\\\ \text{Loop}(\ast, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' \neq c \text{ and } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
 
 ---
 
@@ -172,7 +172,7 @@ Otherwise, if all terminal states in $\mathcal{R}(S_0)$ have empty traces ($\for
 
 ### 4.1 Termination and Abstract Domain Considerations
 
-The abstract domain of symbolic traces $\mathbb{T}$ is technically infinite, as unbounded loops ($\text{Loop}(\ast, \tau)$) can unfold indefinitely. Consequently, the abstract state space $\Sigma_c$ is also infinite. Because of this, the termination of the analysis is not guaranteed by the domain itself. 
+The abstract domain of symbolic traces $\mathbb{T}$ is technically infinite, as unbounded loops `Loop(*, tau)` can unfold indefinitely. Consequently, the abstract state space $\Sigma_c$ is also infinite. Because of this, the termination of the analysis is not guaranteed by the domain itself. 
 
 Instead, termination is enforced strictly via a heuristic bounded step count (Bounded BFS limit) and cycle detection (memoization of visited abstract states). If the state space exploration exceeds the predefined limit (`maxStates = 1000`), the analyzer conservatively halts and reports a `VerdictDeadlock`.
 
