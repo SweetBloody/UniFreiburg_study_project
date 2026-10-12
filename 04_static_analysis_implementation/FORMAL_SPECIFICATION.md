@@ -24,14 +24,14 @@ Where:
   * $\text{Op}(\text{Read}, c)$: Receive operation (`<-c`).
   * $\text{Op}(\text{Close}, c)$: Channel close operation (`close(c)`).
 * $\text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}})$: Conditional branching node abstracted as a non-deterministic choice labeled with string "cond" (complex SSA boolean logic is not statically evaluated).
-* $\text{Loop}(b, \tau_{\text{body}})$: Loop node with iteration bound $b \in \mathbb{N} \cup \{*\}$ and loop body trace $\tau_{\text{body}}$.
-  * $b = N \in \mathbb{N}$: Statically extracted integer bound (e.g. from `i < 5`, $N=5$). (Note: Any literal $> 100$ is treated as an unbounded loop $b = *$ by the matcher to prevent excessive state space exploration).
-  * $b = *$: Dynamic, data-dependent, or unbounded loop iteration count.
+* $\text{Loop}(b, \tau_{\text{body}})$: Loop node with iteration bound $b \in \mathbb{N} \cup \{\ast\}$ and loop body trace $\tau_{\text{body}}$.
+  * $b = N \in \mathbb{N}$: Statically extracted integer bound (e.g. from `i < 5`, $N=5$). (Note: Any literal $> 100$ is treated as an unbounded loop $b = \ast$ by the matcher to prevent excessive state space exploration).
+  * $b = \ast$: Dynamic, data-dependent, or unbounded loop iteration count.
 * $\text{Range}(c, \tau_{\text{body}})$: Range loop over channel $c$ (consumes values continuously until the channel is closed).
 * $\text{Call}(f)$: Recursion-breaker placeholder node emitted when an application-level recursive function call is encountered during static trace inlining.
 
 ### 1.2 Symbolic Trace Grammar
-A **Symbolic Trace** $\tau \in \mathbb{T} = \text{Node}^*$ is a finite sequence of symbolic trace nodes:
+A **Symbolic Trace** $\tau \in \mathbb{T} = \text{Node}^\ast$ is a finite sequence of symbolic trace nodes:
 
 $$\tau ::= \epsilon \mid n \cdot \tau$$
 
@@ -50,7 +50,7 @@ For control flow:
 * **Goroutine Spawn:** $\text{Extract}(\text{go func() } \{ A \}) \implies$ Spawns a new concurrent trace $\text{Extract}(A)$. *(Note: The `go` statement does not produce a symbolic node in the parent trace, but rather initializes a new goroutine $g' \in \mathcal{G}$ in the initial machine state).*
 * **Conditional:** $\text{Extract}(\text{if cond } \{ A \} \text{ else } \{ B \}) \implies \text{If}(\text{cond}, \text{Extract}(A), \text{Extract}(B))$
 * **Bounded Loop:** $\text{Extract}(\text{for } i := 0; i < N; i\text{++} \{ A \}) \implies \text{Loop}(N, \text{Extract}(A))$
-* **Unbounded Loop:** $\text{Extract}(\text{for cond } \{ A \}) \implies \text{Loop}(*, \text{Extract}(A))$
+* **Unbounded Loop:** $\text{Extract}(\text{for cond } \{ A \}) \implies \text{Loop}(\ast, \text{Extract}(A))$
 * **Range Loop:** $\text{Extract}(\text{for } v := \text{range } c \{ A \}) \implies \text{Range}(c, \text{Extract}(A))$
 
 *(Note: Early returns, breaks, and continues without channel operations are not currently modeled by the AST extractor, leading to implicit straight-line execution approximations).*
@@ -81,7 +81,7 @@ $$(\text{If}(\text{cond}, \tau_1, \tau_2) \cdot \tau) \upharpoonright_c = \begin
 
 $$(\text{Loop}(b, \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Loop}(b, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
 
-$$(\text{Range}(c', \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Range}(c, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\\\ \text{Loop}(*, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' \neq c \text{ and } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
+$$(\text{Range}(c', \tau_{\text{body}}) \cdot \tau) \upharpoonright_c = \begin{cases} \text{Range}(c, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' = c \\\\ \text{Loop}(\ast, \tau_{\text{body}} \upharpoonright_c) \cdot (\tau \upharpoonright_c) & \text{if } c' \neq c \text{ and } \tau_{\text{body}} \upharpoonright_c \neq \epsilon \\\\ \tau \upharpoonright_c & \text{otherwise} \end{cases}$$
 
 ---
 
@@ -113,42 +113,69 @@ $$\frac{\Gamma(g) = \text{Op}(\text{Write}, c) \cdot \tau \lor \Gamma(g) = \text
 When a goroutine reaches an `If` node, the abstract interpreter explores both paths non-deterministically. This is modeled by two separate rules:
 
 * **True Branch:**
-  $$\frac{\Gamma(g) = \text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{then}} \cdot \tau], \text{closed})}$$
+
+  $$
+  \frac{\Gamma(g) = \text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{then}} \cdot \tau], \text{closed})}
+  $$
 
 * **False Branch:**
-  $$\frac{\Gamma(g) = \text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{else}} \cdot \tau], \text{closed})}$$
+
+  $$
+  \frac{\Gamma(g) = \text{If}(\text{cond}, \tau_{\text{then}}, \tau_{\text{else}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{else}} \cdot \tau], \text{closed})}
+  $$
 
 ### 3.6 Deterministic Bounded Loop Unrolling ($b = N \in \mathbb{N}$)
 When a loop has a statically known integer bound $N$ ($0 \le N \le 100$), the analyzer unrolls the loop deterministically without creating artificial exit branches:
 
 * **Case $N = 0$ (Zero iterations):**
-  $$\frac{\Gamma(g) = \text{Loop}(0, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}$$
+
+  $$
+  \frac{\Gamma(g) = \text{Loop}(0, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}
+  $$
 
 * **Case $N = 1$ (Single iteration):**
-  $$\frac{\Gamma(g) = \text{Loop}(1, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \tau], \text{closed})}$$
+
+  $$
+  \frac{\Gamma(g) = \text{Loop}(1, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \tau], \text{closed})}
+  $$
 
 * **Case $N > 1$ (Recursive unrolling):**
-  $$\frac{\Gamma(g) = \text{Loop}(N, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(N-1, \tau_{\text{body}}) \cdot \tau], \text{closed})}$$
 
-### 3.7 Non-Deterministic Loop Abstraction ($b = *$)
+  $$
+  \frac{\Gamma(g) = \text{Loop}(N, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(N-1, \tau_{\text{body}}) \cdot \tau], \text{closed})}
+  $$
+
+### 3.7 Non-Deterministic Loop Abstraction ($b = \ast$)
 For unbounded loops or loops with data-dependent conditions, the analyzer abstracts the loop non-deterministically:
 
 * **Exit Loop:**
-  $$\frac{\Gamma(g) = \text{Loop}(*, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}$$
+
+  $$
+  \frac{\Gamma(g) = \text{Loop}(\ast, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau], \text{closed})}
+  $$
 
 * **Execute Iteration:**
-  $$\frac{\Gamma(g) = \text{Loop}(*, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(*, \tau_{\text{body}}) \cdot \tau], \text{closed})}$$
+
+  $$
+  \frac{\Gamma(g) = \text{Loop}(\ast, \tau_{\text{body}}) \cdot \tau}{(\Gamma, \text{closed}) \longrightarrow (\Gamma[g \mapsto \tau_{\text{body}} \cdot \text{Loop}(\ast, \tau_{\text{body}}) \cdot \tau], \text{closed})}
+  $$
 
 ### 3.8 Range over Channel
 Ranging over a channel behaves as a continuous read operation until the channel is closed:
 
 * **Rendezvous iteration:**
-  $$\frac{\Gamma(g_1) = \text{Op}(\text{Write}, c) \cdot \tau_1 \quad \Gamma(g_2) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau_2 \quad g_1 \neq g_2 \quad \text{closed} = \text{false}}{(\Gamma, \text{false}) \longrightarrow (\Gamma[g_1 \mapsto \tau_1, g_2 \mapsto \tau_{\text{body}} \cdot \text{Range}(c, \tau_{\text{body}}) \cdot \tau_2], \text{false})}$$
+
+  $$
+  \frac{\Gamma(g_1) = \text{Op}(\text{Write}, c) \cdot \tau_1 \quad \Gamma(g_2) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau_2 \quad g_1 \neq g_2 \quad \text{closed} = \text{false}}{(\Gamma, \text{false}) \longrightarrow (\Gamma[g_1 \mapsto \tau_1, g_2 \mapsto \tau_{\text{body}} \cdot \text{Range}(c, \tau_{\text{body}}) \cdot \tau_2], \text{false})}
+  $$
 
   (Symmetrically, if $g_1$ has `Range` and $g_2$ has `Write`, the transition applies identically in reverse).
 
 * **Termination on Close:**
-  $$\frac{\Gamma(g) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau \quad \text{closed} = \text{true}}{(\Gamma, \text{true}) \longrightarrow (\Gamma[g \mapsto \tau], \text{true})}$$
+
+  $$
+  \frac{\Gamma(g) = \text{Range}(c, \tau_{\text{body}}) \cdot \tau \quad \text{closed} = \text{true}}{(\Gamma, \text{true}) \longrightarrow (\Gamma[g \mapsto \tau], \text{true})}
+  $$
 
 ---
 
@@ -172,7 +199,7 @@ Otherwise, if all terminal states in $\mathcal{R}(S_0)$ have empty traces ($\for
 
 ### 4.1 Termination and Abstract Domain Considerations
 
-The abstract domain of symbolic traces $\mathbb{T}$ is technically infinite, as unbounded loops ($\text{Loop}(*, \tau)$) can unfold indefinitely. Consequently, the abstract state space $\Sigma_c$ is also infinite. Because of this, the termination of the analysis is not guaranteed by the domain itself. 
+The abstract domain of symbolic traces $\mathbb{T}$ is technically infinite, as unbounded loops ($\text{Loop}(\ast, \tau)$) can unfold indefinitely. Consequently, the abstract state space $\Sigma_c$ is also infinite. Because of this, the termination of the analysis is not guaranteed by the domain itself. 
 
 Instead, termination is enforced strictly via a heuristic bounded step count (Bounded BFS limit) and cycle detection (memoization of visited abstract states). If the state space exploration exceeds the predefined limit (`maxStates = 1000`), the analyzer conservatively halts and reports a `VerdictDeadlock`.
 
