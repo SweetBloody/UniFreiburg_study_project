@@ -5,12 +5,12 @@ import (
 	"log"
 	"os"
 
-	loader "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/01_loader"
-	ssa_builder "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/02_ssa"
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/03_analysis"
-	symbolic "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/04_symbolic"
-	matcher "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/05_matcher"
-	report "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/06_report"
+	loader "04_static_analysis_implementation/internal/01_loader"
+	ssa_builder "04_static_analysis_implementation/internal/02_ssa"
+	analysis "04_static_analysis_implementation/internal/03_analysis"
+	symbolic "04_static_analysis_implementation/internal/04_symbolic"
+	matcher "04_static_analysis_implementation/internal/05_matcher"
+	report "04_static_analysis_implementation/internal/06_report"
 )
 
 func main() {

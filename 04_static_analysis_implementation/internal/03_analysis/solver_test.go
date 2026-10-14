@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/03_analysis"
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
+	analysis "04_static_analysis_implementation/internal/03_analysis"
+	"04_static_analysis_implementation/internal/model"
 )
 
 func TestSolver(t *testing.T) {

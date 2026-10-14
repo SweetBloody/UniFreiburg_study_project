@@ -1,4 +1,4 @@
-module github.com/SweetBloody/UniFreiburg_study_project
+module studyproject
 
 go 1.26.3
 

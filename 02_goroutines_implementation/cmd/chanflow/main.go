@@ -5,10 +5,10 @@ import (
 	"log"
 	"os"
 
-	loader "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/01_loader"
-	ssa_builder "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/02_ssa"
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/03_analysis"
-	report "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/04_report"
+	loader "02_goroutines_implementation/internal/01_loader"
+	ssa_builder "02_goroutines_implementation/internal/02_ssa"
+	analysis "02_goroutines_implementation/internal/03_analysis"
+	report "02_goroutines_implementation/internal/04_report"
 )
 
 func main() {

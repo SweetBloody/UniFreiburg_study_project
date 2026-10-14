@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	matcher "github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/05_matcher"
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
+	matcher "04_static_analysis_implementation/internal/05_matcher"
+	"04_static_analysis_implementation/internal/model"
 )
 
 // PrintReport prints the symbolic traces and then prints the deadlock analysis verdict

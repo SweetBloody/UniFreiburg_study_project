@@ -5,11 +5,11 @@ import (
 	"log"
 	"os"
 
-	loader "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/01_loader"
-	ssa_builder "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/02_ssa"
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/03_analysis"
-	symbolic "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/04_symbolic"
-	report "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/05_report"
+	loader "03_symbolic_trace_implementation/internal/01_loader"
+	ssa_builder "03_symbolic_trace_implementation/internal/02_ssa"
+	analysis "03_symbolic_trace_implementation/internal/03_analysis"
+	symbolic "03_symbolic_trace_implementation/internal/04_symbolic"
+	report "03_symbolic_trace_implementation/internal/05_report"
 )
 
 func main() {

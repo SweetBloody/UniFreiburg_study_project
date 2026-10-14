@@ -1,10 +1,11 @@
 package symbolic
 
 import (
-	"testing"
 	"go/token"
+	"testing"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/model"
+	"03_symbolic_trace_implementation/internal/model"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,7 @@ func TestProjectTrace(t *testing.T) {
 
 	fakeState := model.State{
 		varA: {site1: struct{}{}},
-		varB:  {site2: struct{}{}},
+		varB: {site2: struct{}{}},
 	}
 
 	tests := []struct {
@@ -128,7 +129,7 @@ func TestProjectTrace(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			b := NewBuilder(fakeState)
 			actual := b.projectTrace(test.input, site1)
-			
+
 			if test.expected == nil {
 				assert.Empty(t, actual)
 			} else {

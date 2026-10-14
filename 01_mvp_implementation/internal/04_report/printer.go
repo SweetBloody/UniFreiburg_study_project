@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/01_mvp_implementation/internal/model"
+	"01_mvp_implementation/internal/model"
 
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/01_mvp_implementation/internal/03_analysis"
+	analysis "01_mvp_implementation/internal/03_analysis"
 )
 
 // PrintResults prints the possible channel allocation sites for each target parameter

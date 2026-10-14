@@ -6,7 +6,8 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
+	"04_static_analysis_implementation/internal/model"
+
 	"golang.org/x/tools/go/callgraph"
 	"golang.org/x/tools/go/callgraph/static"
 	"golang.org/x/tools/go/ssa"
@@ -32,7 +33,6 @@ func isAppFunction(calleeNode *callgraph.Node, caller *ssa.Function) bool {
 	}
 	return false
 }
-
 
 type Builder struct {
 	State   model.State
@@ -169,7 +169,7 @@ func (b *Builder) traverseASTNode(n ast.Node, fn *ssa.Function, cgNode *callgrap
 					nodes = append(nodes, model.OpNode{OpType: model.OpWrite, Channel: ctxVal})
 				}
 			}
-			return false 
+			return false
 
 		case *ast.UnaryExpr:
 			// Reading

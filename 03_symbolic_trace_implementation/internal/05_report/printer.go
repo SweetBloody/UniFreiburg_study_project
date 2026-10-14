@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/model"
+	"03_symbolic_trace_implementation/internal/model"
 )
 
 // PrintSymbolicTraces iterates over projected channels and prints their traces

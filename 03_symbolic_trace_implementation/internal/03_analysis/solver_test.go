@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/03_analysis"
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/model"
+	analysis "03_symbolic_trace_implementation/internal/03_analysis"
+	"03_symbolic_trace_implementation/internal/model"
 )
 
 func TestSolver(t *testing.T) {
@@ -143,30 +143,26 @@ func TestSolver(t *testing.T) {
 				},
 				varC: map[model.AllocSite]struct{}{
 					site1: {},
-				    site2: {},
+					site2: {},
 				},
 				varD: map[model.AllocSite]struct{}{
 					site1: {},
-				    site2: {},
+					site2: {},
 				},
 			},
 		},
 		{
 			name: "Empty site",
 			state: model.State{
-				varA: map[model.AllocSite]struct{}{
-				},
-				varB: map[model.AllocSite]struct{}{
-				},
+				varA: map[model.AllocSite]struct{}{},
+				varB: map[model.AllocSite]struct{}{},
 			},
 			constraints: []model.Constraint{
 				{Source: varA, Target: varB},
 			},
 			expectedState: model.State{
-				varA: map[model.AllocSite]struct{}{
-				},
-				varB: map[model.AllocSite]struct{}{
-				},
+				varA: map[model.AllocSite]struct{}{},
+				varB: map[model.AllocSite]struct{}{},
 			},
 		},
 		{

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
+	"04_static_analysis_implementation/internal/model"
 )
 
 // MachineState represents the state of a single channel's projected traces

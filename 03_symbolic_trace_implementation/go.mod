@@ -1,4 +1,4 @@
-module github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation
+module 03_symbolic_trace_implementation
 
 go 1.26.4
 

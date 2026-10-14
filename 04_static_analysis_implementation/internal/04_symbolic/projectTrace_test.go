@@ -4,7 +4,8 @@ import (
 	"go/token"
 	"testing"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation/internal/model"
+	"04_static_analysis_implementation/internal/model"
+
 	"github.com/stretchr/testify/assert"
 )
 

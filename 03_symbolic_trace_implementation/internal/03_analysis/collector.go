@@ -5,7 +5,8 @@ import (
 	"go/token"
 	"go/types"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/03_symbolic_trace_implementation/internal/model"
+	"03_symbolic_trace_implementation/internal/model"
+
 	"golang.org/x/tools/go/callgraph"
 	"golang.org/x/tools/go/callgraph/static"
 	"golang.org/x/tools/go/ssa"

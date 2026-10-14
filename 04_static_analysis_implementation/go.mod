@@ -1,4 +1,4 @@
-module github.com/SweetBloody/UniFreiburg_study_project/chanflow/04_static_analysis_implementation
+module 04_static_analysis_implementation
 
 go 1.26.4
 

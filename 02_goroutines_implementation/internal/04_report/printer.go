@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/model"
+	"02_goroutines_implementation/internal/model"
 
-	analysis "github.com/SweetBloody/UniFreiburg_study_project/chanflow/02_goroutines_implementation/internal/03_analysis"
+	analysis "02_goroutines_implementation/internal/03_analysis"
 )
 
 // PrintResults prints the abstract domain: which goroutines perform what operations on each channel
